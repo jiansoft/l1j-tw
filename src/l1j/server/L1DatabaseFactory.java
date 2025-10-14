@@ -1,42 +1,38 @@
 /**
  *                            License
- * THE WORK (AS DEFINED BELOW) IS PROVIDED UNDER THE TERMS OF THIS  
- * CREATIVE COMMONS PUBLIC LICENSE ("CCPL" OR "LICENSE"). 
- * THE WORK IS PROTECTED BY COPYRIGHT AND/OR OTHER APPLICABLE LAW.  
- * ANY USE OF THE WORK OTHER THAN AS AUTHORIZED UNDER THIS LICENSE OR  
+ * THE WORK (AS DEFINED BELOW) IS PROVIDED UNDER THE TERMS OF THIS
+ * CREATIVE COMMONS PUBLIC LICENSE ("CCPL" OR "LICENSE").
+ * THE WORK IS PROTECTED BY COPYRIGHT AND/OR OTHER APPLICABLE LAW.
+ * ANY USE OF THE WORK OTHER THAN AS AUTHORIZED UNDER THIS LICENSE OR
  * COPYRIGHT LAW IS PROHIBITED.
- * 
- * BY EXERCISING ANY RIGHTS TO THE WORK PROVIDED HERE, YOU ACCEPT AND  
- * AGREE TO BE BOUND BY THE TERMS OF THIS LICENSE. TO THE EXTENT THIS LICENSE  
- * MAY BE CONSIDERED TO BE A CONTRACT, THE LICENSOR GRANTS YOU THE RIGHTS CONTAINED 
+ *
+ * BY EXERCISING ANY RIGHTS TO THE WORK PROVIDED HERE, YOU ACCEPT AND
+ * AGREE TO BE BOUND BY THE TERMS OF THIS LICENSE. TO THE EXTENT THIS LICENSE
+ * MAY BE CONSIDERED TO BE A CONTRACT, THE LICENSOR GRANTS YOU THE RIGHTS CONTAINED
  * HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND CONDITIONS.
- * 
+ *
  */
 package l1j.server;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 
 import l1j.server.server.utils.LeakCheckedConnection;
 
 /**
- * DBへのアクセスするための各種インターフェースを提供する.
- * 使用簡單的連接池實現，不依賴外部庫
+ * 提供存取資料庫的各種介面.
+ * 使用 HikariCP 高性能連接池
  */
 public class L1DatabaseFactory {
 	/** 資料庫的實例 */
 	private static L1DatabaseFactory _instance;
 
-	/** 連接池 */
-	private final List<Connection> connectionPool;
-	private final List<Connection> usedConnections = new ArrayList<>();
-	private static final int INITIAL_POOL_SIZE = 10;
-	private static final int MAX_POOL_SIZE = 20;
+	/** HikariCP 資料來源 */
+	private HikariDataSource dataSource;
 
 	/** 紀錄用 */
 	private static Logger _log = Logger.getLogger(L1DatabaseFactory.class.getName());
@@ -54,15 +50,22 @@ public class L1DatabaseFactory {
 	/** 登入資料庫的密碼 */
 	private static String _password;
 
+	/** HikariCP 連接池設定 */
+	private static int _minimumIdle = 10;
+	private static int _maximumPoolSize = 20;
+	private static long _connectionTimeout = 30000;
+	private static long _idleTimeout = 600000;
+	private static long _maxLifetime = 1800000;
+
 	/**
 	 * 設定資料庫登入的相關資訊
-	 * 
-	 * @param driver 
+	 *
+	 * @param driver
 	 *            資料庫連結的驅動程式
 	 * @param url
 	 *            資料庫連結的位址
 	 * @param user
-	 *            登入資料庫的使用者名稱 
+	 *            登入資料庫的使用者名稱
 	 * @param password
 	 *            登入資料庫的密碼
 	 */
@@ -75,31 +78,81 @@ public class L1DatabaseFactory {
 	}
 
 	/**
+	 * 設定 HikariCP 連接池參數
+	 *
+	 * @param minimumIdle 最小閒置連接數
+	 * @param maximumPoolSize 最大連接池大小
+	 * @param connectionTimeout 連接超時時間（毫秒）
+	 * @param idleTimeout 閒置超時時間（毫秒）
+	 * @param maxLifetime 連接最大存活時間（毫秒）
+	 */
+	public static void setHikariConfig(int minimumIdle, int maximumPoolSize,
+			long connectionTimeout, long idleTimeout, long maxLifetime) {
+		_minimumIdle = minimumIdle;
+		_maximumPoolSize = maximumPoolSize;
+		_connectionTimeout = connectionTimeout;
+		_idleTimeout = idleTimeout;
+		_maxLifetime = maxLifetime;
+	}
+
+	/**
 	 * 資料庫連結的設定與配置
-	 * 
+	 *
 	 * @throws SQLException
 	 */
 	public L1DatabaseFactory() throws SQLException {
 		try {
 			// 載入 JDBC 驅動程式
 			Class.forName(_driver);
-			
+
 			_log.info("Attempting to connect to database: " + _url);
 			_log.info("Using driver: " + _driver);
 			_log.info("User: " + _user);
-			
-			// 初始化連接池
-			connectionPool = new ArrayList<>(INITIAL_POOL_SIZE);
-			for (int i = 0; i < INITIAL_POOL_SIZE; i++) {
-				connectionPool.add(createConnection());
-			}
-			
-			_log.info("Database connection pool initialized with " + INITIAL_POOL_SIZE + " connections");
-			
+
+			// 配置 HikariCP
+			HikariConfig config = new HikariConfig();
+			config.setJdbcUrl(_url);
+			config.setUsername(_user);
+			config.setPassword(_password);
+			config.setDriverClassName(_driver);
+
+			// 連接池參數設定
+			config.setMinimumIdle(_minimumIdle);
+			config.setMaximumPoolSize(_maximumPoolSize);
+			config.setConnectionTimeout(_connectionTimeout);
+			config.setIdleTimeout(_idleTimeout);
+			config.setMaxLifetime(_maxLifetime);
+
+			// 連接測試與健康檢查
+			config.setConnectionTestQuery("SELECT 1");
+			config.setPoolName("L1J-HikariCP");
+
+			// 性能優化設定
+			config.addDataSourceProperty("cachePrepStmts", "true");
+			config.addDataSourceProperty("prepStmtCacheSize", "250");
+			config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
+			config.addDataSourceProperty("useServerPrepStmts", "true");
+			config.addDataSourceProperty("useLocalSessionState", "true");
+			config.addDataSourceProperty("rewriteBatchedStatements", "true");
+			config.addDataSourceProperty("cacheResultSetMetadata", "true");
+			config.addDataSourceProperty("cacheServerConfiguration", "true");
+			config.addDataSourceProperty("elideSetAutoCommits", "true");
+			config.addDataSourceProperty("maintainTimeStats", "false");
+
+			// 初始化 HikariCP 資料來源
+			dataSource = new HikariDataSource(config);
+
+			_log.info("HikariCP connection pool initialized");
+			_log.info("  - Minimum Idle: " + _minimumIdle);
+			_log.info("  - Maximum Pool Size: " + _maximumPoolSize);
+			_log.info("  - Connection Timeout: " + _connectionTimeout + "ms");
+			_log.info("  - Idle Timeout: " + _idleTimeout + "ms");
+			_log.info("  - Max Lifetime: " + _maxLifetime + "ms");
+
 			/* Test the connection */
 			Connection testConn = getConnection();
 			if (testConn != null) {
-				releaseConnection(testConn);
+				testConn.close();
 				_log.info("Database connection test successful");
 			}
 		} catch (ClassNotFoundException e) {
@@ -115,42 +168,22 @@ public class L1DatabaseFactory {
 	}
 
 	/**
-	 * 創建新的資料庫連接
-	 */
-	private Connection createConnection() throws SQLException {
-		return DriverManager.getConnection(_url, _user, _password);
-	}
-
-	/**
 	 * 伺服器關閉的時候要關閉與資料庫的連結
 	 */
 	public void shutdown() {
 		try {
-			// 關閉所有連接池中的連接
-			for (Connection conn : connectionPool) {
-				if (conn != null && !conn.isClosed()) {
-					conn.close();
-				}
+			if (dataSource != null && !dataSource.isClosed()) {
+				dataSource.close();
+				_log.info("HikariCP connection pool closed");
 			}
-			connectionPool.clear();
-			
-			// 關閉所有正在使用的連接
-			for (Connection conn : usedConnections) {
-				if (conn != null && !conn.isClosed()) {
-					conn.close();
-				}
-			}
-			usedConnections.clear();
-			
-			_log.info("Database connections closed");
 		} catch (Exception e) {
-			_log.log(Level.WARNING, "Error closing database connections", e);
+			_log.warning("Error closing HikariCP connection pool: " + e.getMessage());
 		}
 	}
 
 	/**
 	 * 取得資料庫的實例（第一次實例為 null 的時候才新建立一個).
-	 * 
+	 *
 	 * @return L1DatabaseFactory
 	 * @throws SQLException
 	 */
@@ -163,62 +196,40 @@ public class L1DatabaseFactory {
 
 	/**
 	 * 取得資料庫連結時的連線
-	 * 
+	 *
 	 * @return Connection 連結對象
 	 * @throws SQLException
 	 */
-	public synchronized Connection getConnection() {
+	public Connection getConnection() {
 		Connection conn = null;
 
 		try {
-			// 如果連接池中有可用連接，從池中獲取
-			if (!connectionPool.isEmpty()) {
-				conn = connectionPool.remove(connectionPool.size() - 1);
-				
-				// 檢查連接是否仍然有效
-				if (conn.isClosed() || !conn.isValid(2)) {
-					conn = createConnection();
-				}
-			} 
-			// 如果池中沒有連接，創建新連接（如果未達到最大限制）
-			else if (usedConnections.size() < MAX_POOL_SIZE) {
-				conn = createConnection();
-			}
-			// 如果已達到最大限制，等待可用連接
-			else {
-				_log.warning("Connection pool exhausted, waiting for available connection...");
-				// 可以在這裡實現等待邏輯或拋出異常
-				conn = createConnection(); // 暫時創建新連接
-			}
-			
-			usedConnections.add(conn);
-			
+			// 從 HikariCP 獲取連接
+			conn = dataSource.getConnection();
 		} catch (SQLException e) {
 			_log.warning("L1DatabaseFactory: getConnection() failed: " + e.getMessage());
 			throw new RuntimeException("Failed to get database connection", e);
 		}
-		
+
+		// 如果啟用了連接洩漏檢測，返回包裝後的連接
 		return l1j.server.Config.DETECT_DB_RESOURCE_LEAKS ? LeakCheckedConnection.create(conn) : conn;
 	}
 
 	/**
 	 * 釋放連接回連接池
-	 * 
+	 * 注意：使用 HikariCP 時，只需調用 Connection.close() 即可將連接歸還池中
+	 * 此方法保留是為了向後兼容，但實際上直接關閉連接即可
+	 *
 	 * @param conn 要釋放的連接
+	 * @deprecated 建議直接使用 Connection.close() 代替
 	 */
-	public synchronized void releaseConnection(Connection conn) {
+	@Deprecated
+	public void releaseConnection(Connection conn) {
 		if (conn != null) {
 			try {
-				usedConnections.remove(conn);
-				
-				// 只有當連接仍然有效時才放回池中
-				if (!conn.isClosed() && conn.isValid(2)) {
-					connectionPool.add(conn);
-				} else {
-					conn.close();
-				}
+				conn.close(); // HikariCP 會自動將連接歸還池中
 			} catch (SQLException e) {
-				_log.log(Level.WARNING, "Error releasing connection", e);
+				_log.warning("Error releasing connection: " + e.getMessage());
 			}
 		}
 	}

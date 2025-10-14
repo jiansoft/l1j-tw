@@ -106,7 +106,7 @@ public class S_AuctionBoard extends ServerBasePacket {
 					id[i] = rs.getInt(1);
 					name[i] = rs.getString(2);
 					area[i] = rs.getInt(3);
-					Calendar cal = timestampToCalendar((Timestamp) rs.getObject(4));
+					Calendar cal = timestampToCalendar(rs.getTimestamp(4));
 					month[i] = cal.get(Calendar.MONTH) + 1;
 					day[i] = cal.get(Calendar.DATE);
 					price[i] = rs.getInt(5);

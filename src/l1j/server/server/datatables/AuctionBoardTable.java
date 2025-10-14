@@ -58,7 +58,7 @@ public class AuctionBoardTable {
 				board.setHouseId(rs.getInt(1));
 				board.setHouseName(rs.getString(2));
 				board.setHouseArea(rs.getInt(3));
-				board.setDeadline(timestampToCalendar((Timestamp) rs.getObject(4)));
+				board.setDeadline(timestampToCalendar(rs.getTimestamp(4)));
 				board.setPrice(rs.getInt(5));
 				board.setLocation(rs.getString(6));
 				board.setOldOwner(rs.getString(7));

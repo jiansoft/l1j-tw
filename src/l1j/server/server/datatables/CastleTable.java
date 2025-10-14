@@ -70,7 +70,7 @@ public class CastleTable {
 
 			while (rs.next()) {
 				L1Castle castle = new L1Castle(rs.getInt(1), rs.getString(2));
-				castle.setWarTime(timestampToCalendar((Timestamp) rs.getObject(3)));
+				castle.setWarTime(timestampToCalendar(rs.getTimestamp(3)));
 				castle.setTaxRate(rs.getInt(4));
 				castle.setPublicMoney(rs.getInt(5));
 
