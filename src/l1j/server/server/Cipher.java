@@ -82,13 +82,13 @@ public class Cipher {
 		data[0] ^= eb[0];
 
 		for (int i = 1; i < data.length; i++) {
-			data[i] ^= data[i - 1] ^ eb[i & 7];
+			data[i] ^= (byte) (data[i - 1] ^ eb[i & 7]);
 		}
 
 		data[3] ^= eb[2];
-		data[2] ^= eb[3] ^ data[3];
-		data[1] ^= eb[4] ^ data[2];
-		data[0] ^= eb[5] ^ data[1];
+		data[2] ^= (byte) (eb[3] ^ data[3]);
+		data[1] ^= (byte) (eb[4] ^ data[2]);
+		data[0] ^= (byte) (eb[5] ^ data[1]);
 		update(eb, tb);
 		return data;
 	}

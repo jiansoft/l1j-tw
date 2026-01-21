@@ -43,182 +43,357 @@ import l1j.server.server.utils.Random;
 
 import static l1j.server.server.model.skill.L1SkillId.*;
 
+/**
+ * 天堂I戰鬥攻擊計算系統核心類別
+ *
+ * <p>此類別負責處理天堂I遊戲中所有類型的戰鬥攻擊計算，包括命中率判定、傷害計算、
+ * 武器系統整合、技能效果、屬性傷害、狀態效果等複雜的戰鬥機制。</p>
+ *
+ * <h2>主要功能</h2>
+ * <ul>
+ *   <li><b>命中率計算：</b>根據攻擊者和目標的屬性、裝備、技能效果計算攻擊命中機率</li>
+ *   <li><b>傷害計算：</b>計算物理傷害、屬性傷害、額外效果傷害等</li>
+ *   <li><b>武器系統：</b>支援近戰武器、遠程武器（弓箭、鐵手甲）、特殊武器</li>
+ *   <li><b>技能整合：</b>支援各種戰鬥技能的效果計算</li>
+ *   <li><b>特殊機制：</b>暴擊、雙倍傷害、屬性附魔、狀態效果等</li>
+ * </ul>
+ *
+ * <h2>攻擊類型</h2>
+ * 系統支援四種基本的攻擊計算類型：
+ * <ul>
+ *   <li><b>PC vs PC (PC_PC)：</b>玩家對玩家的PvP戰鬥</li>
+ *   <li><b>PC vs NPC (PC_NPC)：</b>玩家對怪物的PvE戰鬥</li>
+ *   <li><b>NPC vs PC (NPC_PC)：</b>怪物對玩家的攻擊</li>
+ *   <li><b>NPC vs NPC (NPC_NPC)：</b>怪物之間的戰鬥（如寵物、召喚獸）</li>
+ * </ul>
+ *
+ * <h2>武器系統</h2>
+ * <ul>
+ *   <li><b>近戰武器：</b>使用力量(STR)作為主要傷害屬性，受武器耐久度影響</li>
+ *   <li><b>弓箭 (Type 20)：</b>使用敏捷(DEX)作為主要傷害屬性，需要消耗箭矢</li>
+ *   <li><b>鐵手甲 (Type 62)：</b>使用敏捷(DEX)作為主要傷害屬性，需要消耗飛刀</li>
+ *   <li><b>武器強化：</b>支援武器強化等級、祝福狀態、屬性附魔等</li>
+ * </ul>
+ *
+ * <h2>命中率計算公式</h2>
+ * <p>玩家對玩家的命中率計算：</p>
+ * <pre>
+ * 基礎命中 = (等級 + 職業補正 + STR補正 + DEX補正 + 武器補正 + 強化值/2 + 魔法補正) × 0.68 - 10
+ * 最終命中率受目標AC、閃避率影響，範圍在5%~95%之間
+ * </pre>
+ *
+ * <h2>傷害計算機制</h2>
+ * <ul>
+ *   <li><b>基礎傷害：</b>武器傷害 + 屬性補正（STR或DEX）+ 強化值傷害</li>
+ *   <li><b>額外傷害：</b>技能傷害、屬性附魔傷害、種族特效傷害</li>
+ *   <li><b>傷害減免：</b>目標防禦力、傷害減免、屬性抗性</li>
+ *   <li><b>特殊效果：</b>暴擊、雙倍傷害、吸血、吸魔等</li>
+ * </ul>
+ *
+ * <h2>屬性系統</h2>
+ * 支援武器屬性附魔系統，包括：
+ * <ul>
+ *   <li>火屬性傷害（對不死系額外傷害）</li>
+ *   <li>水屬性傷害</li>
+ *   <li>風屬性傷害</li>
+ *   <li>地屬性傷害</li>
+ * </ul>
+ *
+ * <h2>狀態效果</h2>
+ * 攻擊可能觸發以下狀態效果：
+ * <ul>
+ *   <li>中毒（傷害中毒、麻痺中毒、沉默中毒）</li>
+ *   <li>吸血（HP吸取）</li>
+ *   <li>吸魔（MP吸取）</li>
+ *   <li>暈眩、麻痺、石化等控制效果</li>
+ * </ul>
+ *
+ * <h2>無敵機制</h2>
+ * 以下技能效果會使目標進入無敵狀態，不受任何傷害：
+ * <ul>
+ *   <li>絕對屏障 (ABSOLUTE_BARRIER)</li>
+ *   <li>冰矛術 (ICE_LANCE)</li>
+ *   <li>暴風雪 (FREEZING_BLIZZARD)</li>
+ *   <li>寒冰吐息 (FREEZING_BREATH)</li>
+ *   <li>大地束縛 (EARTH_BIND)</li>
+ * </ul>
+ *
+ * <h2>使用範例</h2>
+ * <pre>
+ * // 建立攻擊實例
+ * L1Attack attack = new L1Attack(attacker, target);
+ *
+ * // 計算命中
+ * if (attack.calcHit()) {
+ *     // 計算傷害
+ *     attack.calcDamage();
+ *
+ *     // 執行攻擊動作
+ *     attack.action();
+ *
+ *     // 提交傷害
+ *     attack.commit();
+ * }
+ *
+ * // 使用技能攻擊
+ * L1Attack skillAttack = new L1Attack(attacker, target, skillId);
+ * skillAttack.calcHit();
+ * skillAttack.calcDamage();
+ * skillAttack.action();
+ * skillAttack.commit();
+ * </pre>
+ *
+ * <h2>重要注意事項</h2>
+ * <ul>
+ *   <li>所有攻擊計算都會考慮遊戲配置檔中的倍率設定（rates.properties）</li>
+ *   <li>武器射程計算會考慮障礙物阻擋（使用glanceCheck）</li>
+ *   <li>遠程武器會消耗彈藥（箭矢或飛刀）</li>
+ *   <li>武器耐久度會在攻擊後降低（近戰武器）</li>
+ *   <li>PvP和PvE的傷害計算公式有所不同</li>
+ * </ul>
+ *
+ * @author L1JTW 99nets
+ * @version 3.80c
+ * @see L1Character 遊戲角色基礎類別
+ * @see L1PcInstance 玩家角色類別
+ * @see L1NpcInstance NPC/怪物類別
+ * @see L1ItemInstance 物品實例類別
+ * @see L1Skills 技能模板類別
+ * @see ActionCodes 動作代碼定義
+ */
 public class L1Attack {
+	/* ========== 攻擊者與目標資訊 ========== */
+
+	/** 攻擊者（當攻擊者為玩家時） */
 	private L1PcInstance _pc = null;
 
+	/** 攻擊目標（基礎角色類型） */
 	private L1Character _target = null;
 
+	/** 攻擊目標（當目標為玩家時） */
 	private L1PcInstance _targetPc = null;
 
+	/** 攻擊者（當攻擊者為NPC/怪物時） */
 	private L1NpcInstance _npc = null;
 
+	/** 攻擊目標（當目標為NPC/怪物時） */
 	private L1NpcInstance _targetNpc = null;
 
+	/** 目標的唯一識別ID */
 	private final int _targetId;
 
+	/** 目標的X座標（用於距離檢查） */
 	private int _targetX;
 
+	/** 目標的Y座標（用於距離檢查） */
 	private int _targetY;
 
+	/* ========== 攻擊計算相關 ========== */
+
+	/** 屬性補正傷害（STR或DEX的傷害加成） */
 	private int _statusDamage = 0;
 
+	/** 命中率數值 */
 	private int _hitRate = 0;
 
+	/**
+	 * 攻擊計算類型
+	 * @see #PC_PC 玩家對玩家
+	 * @see #PC_NPC 玩家對NPC
+	 * @see #NPC_PC NPC對玩家
+	 * @see #NPC_NPC NPC對NPC
+	 */
 	private int _calcType;
 
+	/** 攻擊計算類型：玩家 vs 玩家 */
 	private static final int PC_PC = 1;
 
+	/** 攻擊計算類型：玩家 vs NPC */
 	private static final int PC_NPC = 2;
 
+	/** 攻擊計算類型：NPC vs 玩家 */
 	private static final int NPC_PC = 3;
 
+	/** 攻擊計算類型：NPC vs NPC */
 	private static final int NPC_NPC = 4;
 
+	/** 是否命中目標 */
 	private boolean _isHit = false;
 
+	/** 最終傷害值 */
 	private int _damage = 0;
 
+	/** 吸取魔力值 */
 	private int _drainMana = 0;
 
+	/** 吸取生命值 */
 	private int _drainHp = 0;
 
+	/** 特效ID */
 	private byte _effectId = 0;
 
+	/** 攻擊圖形ID（用於客戶端顯示） */
 	private int _attckGrfxId = 0;
 
+	/** 攻擊動作ID（用於客戶端顯示） */
 	private int _attckActId = 0;
 
-	// 攻撃者がプレイヤーの場合の武器情報
+	/* ========== 武器資訊（當攻擊者為玩家時） ========== */
+
+	/** 攻擊者裝備的武器實例 */
 	private L1ItemInstance weapon = null;
 
+	/** 武器物品ID */
 	private int _weaponId = 0;
 
+	/** 武器類型1（大分類） */
 	private int _weaponType = 0;
 
+	/** 武器類型2（細分類） */
 	private int _weaponType2 = 0;
 
+	/** 武器命中加成 */
 	private int _weaponAddHit = 0;
 
+	/** 武器傷害加成 */
 	private int _weaponAddDmg = 0;
 
+	/** 武器對小型目標的傷害 */
 	private int _weaponSmall = 0;
 
+	/** 武器對大型目標的傷害 */
 	private int _weaponLarge = 0;
 
+	/** 武器射程（1=近戰） */
 	private int _weaponRange = 1;
 
+	/** 武器祝福狀態（0=詛咒, 1=未祝福, 2=祝福） */
 	private int _weaponBless = 1;
 
+	/** 武器強化等級（+0 ~ +9以上） */
 	private int _weaponEnchant = 0;
 
+	/** 武器材質類型 */
 	private int _weaponMaterial = 0;
 
+	/** 武器雙倍傷害機率 */
 	private int _weaponDoubleDmgChance = 0;
 
+	/** 武器屬性附魔種類（火/水/風/地） */
 	private int _weaponAttrEnchantKind = 0;
 
+	/** 武器屬性附魔等級 */
 	private int _weaponAttrEnchantLevel = 0;
 
+	/** 箭矢物品實例（弓箭類武器使用） */
 	private L1ItemInstance _arrow = null;
 
+	/** 飛刀物品實例（鐵手甲類武器使用） */
 	private L1ItemInstance _sting = null;
 
-	private int _leverage = 10; // 1/10倍で表現する。
+	/**
+	 * 槓桿倍率（以1/10表示，預設10表示1.0倍）
+	 * 用於調整最終傷害的倍數計算
+	 */
+	private int _leverage = 10;
 
+	/** 使用的技能ID（0表示普通攻擊） */
 	private int _skillId;
 
+	/** 技能基礎傷害值 */
 	@SuppressWarnings("unused")
 	private double _skillDamage = 0;
 
+	/**
+	 * 設定槓桿倍率
+	 *
+	 * @param i 槓桿倍率值（以1/10表示，例如10表示1.0倍，20表示2.0倍）
+	 */
 	public void setLeverage(int i) {
 		_leverage = i;
 	}
 
+	/**
+	 * 取得槓桿倍率
+	 *
+	 * @return 槓桿倍率值（以1/10表示）
+	 */
 	private int getLeverage() {
 		return _leverage;
 	}
 
-	// 攻撃者がプレイヤーの場合のステータスによる補正
-	// private static final int[] strHit = { -2, -2, -2, -2, -2, -2, -2, -2, -2,
-	// -2, -1, -1, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9,
-	// 9, 10, 10, 11, 11, 12, 12, 13, 13, 14 };
+	/* ========== 屬性值對命中率與傷害的補正表 ========== */
 
-	// private static final int[] dexHit = { -2, -2, -2, -2, -2, -2, -2, -2, -2,
-	// -1, -1, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8,
-	// 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14 };
-
-	/*
-	 * private static final int[] strHit = { -2, -2, -2, -2, -2, -2, -2, //
-	 * 0～7まで -1, -1, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, //
-	 * 8～26まで 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12, 12, //
-	 * 27～44まで 13, 13, 13, 14, 14, 14, 15, 15, 15, 16, 16, 16, 17, 17, 17}; //
-	 * 45～59まで
-	 * 
-	 * private static final int[] dexHit = { -2, -2, -2, -2, -2, -2, -1, -1, 0,
-	 * 0, // 1～10まで 1, 1, 2, 2, 3, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
-	 * 15, 16, // 11～30まで 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
-	 * 30, 31, // 31～45まで 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
-	 * 45, 46 }; // 46～60まで
-	 * 
-	 * private static final int[] strDmg = new int[128];
-	 * 
-	 * static { // ＳＴＲダメージ補正 int dmg = -6; for (int str = 0; str <= 22; str++) {
-	 * // ０～２２は２毎に＋１ if (str % 2 == 1) { dmg++; } strDmg[str] = dmg; } for (int
-	 * str = 23; str <= 28; str++) { // ２３～２８は３毎に＋１ if (str % 3 == 2) { dmg++; }
-	 * strDmg[str] = dmg; } for (int str = 29; str <= 32; str++) { //
-	 * ２９～３２は２毎に＋１ if (str % 2 == 1) { dmg++; } strDmg[str] = dmg; } for (int
-	 * str = 33; str <= 39; str++) { // ３３～３９は１毎に＋１ dmg++; strDmg[str] = dmg; }
-	 * for (int str = 40; str <= 46; str++) { // ４０～４６は１毎に＋２ dmg += 2;
-	 * strDmg[str] = dmg; } for (int str = 47; str <= 127; str++) { //
-	 * ４７～１２７は１毎に＋１ dmg++; strDmg[str] = dmg; } }
-	 * 
-	 * private static final int[] dexDmg = new int[128];
-	 * 
-	 * static { // ＤＥＸダメージ補正 for (int dex = 0; dex <= 14; dex++) { // ０～１４は０
-	 * dexDmg[dex] = 0; } dexDmg[15] = 1; dexDmg[16] = 2; dexDmg[17] = 3;
-	 * dexDmg[18] = 4; dexDmg[19] = 4; dexDmg[20] = 4; dexDmg[21] = 5;
-	 * dexDmg[22] = 5; dexDmg[23] = 5; int dmg = 5; for (int dex = 24; dex <=
-	 * 127; dex++) { // ２４～１２７は１毎に＋１ dmg++; dexDmg[dex] = dmg; } }
+	/**
+	 * 力量(STR)對命中率的補正表
+	 * <p>索引為力量值-1（例如STR 8使用索引7），返回對應的命中率加成</p>
+	 * <ul>
+	 *   <li>STR 1-7: -2 命中</li>
+	 *   <li>STR 8-26: -2 ~ +6 命中（逐漸遞增）</li>
+	 *   <li>STR 27-44: +7 ~ +12 命中（每3點+1）</li>
+	 *   <li>STR 45-59: +13 ~ +17 命中（每3點+1）</li>
+	 * </ul>
 	 */
-
 	private static final int[] strHit = { -2, -2, -2, -2, -2, -2, -2, // 1～7まで
 			-2, -1, -1, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 5, 6, 6, 6, // 8～26まで
 			7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12, 12, // 27～44まで
 			13, 13, 13, 14, 14, 14, 15, 15, 15, 16, 16, 16, 17, 17, 17 }; // 45～59まで
 
+	/**
+	 * 敏捷(DEX)對命中率的補正表
+	 * <p>索引為敏捷值-1（例如DEX 10使用索引9），返回對應的命中率加成</p>
+	 * <ul>
+	 *   <li>DEX 1-6: -2 命中</li>
+	 *   <li>DEX 7-10: -1 ~ 0 命中</li>
+	 *   <li>DEX 11-30: +1 ~ +16 命中（遞增較快）</li>
+	 *   <li>DEX 31-45: +17 ~ +23 命中（每3點+1）</li>
+	 *   <li>DEX 46-60: +23 ~ +28 命中（每3點+1）</li>
+	 * </ul>
+	 */
 	private static final int[] dexHit = { -2, -2, -2, -2, -2, -2, -1, -1, 0, 0, // 1～10まで
 			1, 1, 2, 2, 3, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, // 11～30まで
 			17, 18, 19, 19, 19, 20, 20, 20, 21, 21, 21, 22, 22, 22, 23, // 31～45まで
 			23, 23, 24, 24, 24, 25, 25, 25, 26, 26, 26, 27, 27, 27, 28 }; // 46～60まで
 
+	/**
+	 * 力量(STR)對傷害的補正表
+	 * <p>支援STR 0-127的傷害補正計算，使用靜態初始化區塊動態生成數值</p>
+	 * <ul>
+	 *   <li>STR 0-22: -6 ~ +5 傷害（每2點+1）</li>
+	 *   <li>STR 23-28: +5 ~ +7 傷害（每3點+1）</li>
+	 *   <li>STR 29-32: +7 ~ +9 傷害（每2點+1）</li>
+	 *   <li>STR 33-34: +9 ~ +11 傷害（每1點+1）</li>
+	 *   <li>STR 35-127: +11 ~ +34 傷害（每4點+1）</li>
+	 * </ul>
+	 */
 	private static final int[] strDmg = new int[128];
 
 	static {
-		// STRダメージ補正
+		// STR傷害補正初始化
 		int dmg = -6;
-		for (int str = 0; str <= 22; str++) { // 0～22は2毎に+1
+		for (int str = 0; str <= 22; str++) { // 0～22每2點+1
 			if (str % 2 == 1) {
 				dmg++;
 			}
 			strDmg[str] = dmg;
 		}
-		for (int str = 23; str <= 28; str++) { // 23～28は3毎に+1
+		for (int str = 23; str <= 28; str++) { // 23～28每3點+1
 			if (str % 3 == 2) {
 				dmg++;
 			}
 			strDmg[str] = dmg;
 		}
-		for (int str = 29; str <= 32; str++) { // 29～32は2毎に+1
+		for (int str = 29; str <= 32; str++) { // 29～32每2點+1
 			if (str % 2 == 1) {
 				dmg++;
 			}
 			strDmg[str] = dmg;
 		}
-		for (int str = 33; str <= 34; str++) { // 33～34は1毎に+1
+		for (int str = 33; str <= 34; str++) { // 33～34每1點+1
 			dmg++;
 			strDmg[str] = dmg;
 		}
-		for (int str = 35; str <= 127; str++) { // 35～127は4毎に+1
+		for (int str = 35; str <= 127; str++) { // 35～127每4點+1
 			if (str % 4 == 1) {
 				dmg++;
 			}
@@ -226,12 +401,23 @@ public class L1Attack {
 		}
 	}
 
+	/**
+	 * 敏捷(DEX)對傷害的補正表
+	 * <p>支援DEX 0-127的傷害補正計算，使用靜態初始化區塊動態生成數值</p>
+	 * <ul>
+	 *   <li>DEX 0-14: 0 傷害（無加成）</li>
+	 *   <li>DEX 15-18: +1 ~ +4 傷害</li>
+	 *   <li>DEX 19-23: +4 ~ +5 傷害</li>
+	 *   <li>DEX 24-35: +5 ~ +9 傷害（每3點+1）</li>
+	 *   <li>DEX 36-127: +9 ~ +32 傷害（每4點+1）</li>
+	 * </ul>
+	 */
 	private static final int[] dexDmg = new int[128];
 
 	static {
-		// DEXダメージ補正
+		// DEX傷害補正初始化
 		for (int dex = 0; dex <= 14; dex++) {
-			// 0～14は0
+			// 0～14無加成
 			dexDmg[dex] = 0;
 		}
 		dexDmg[15] = 1;
@@ -244,13 +430,13 @@ public class L1Attack {
 		dexDmg[22] = 5;
 		dexDmg[23] = 5;
 		int dmg = 5;
-		for (int dex = 24; dex <= 35; dex++) { // 24～35は3毎に+1
+		for (int dex = 24; dex <= 35; dex++) { // 24～35每3點+1
 			if (dex % 3 == 1) {
 				dmg++;
 			}
 			dexDmg[dex] = dmg;
 		}
-		for (int dex = 36; dex <= 127; dex++) { // 36～127は4毎に1
+		for (int dex = 36; dex <= 127; dex++) { // 36～127每4點+1
 			if (dex % 4 == 1) {
 				dmg++;
 			}
@@ -258,26 +444,79 @@ public class L1Attack {
 		}
 	}
 
+	/**
+	 * 設定攻擊動作ID
+	 *
+	 * @param actId 動作ID（用於客戶端顯示攻擊動作）
+	 */
 	public void setActId(int actId) {
 		_attckActId = actId;
 	}
 
+	/**
+	 * 設定攻擊圖形ID
+	 *
+	 * @param gfxId 圖形ID（用於客戶端顯示攻擊特效）
+	 */
 	public void setGfxId(int gfxId) {
 		_attckGrfxId = gfxId;
 	}
 
+	/**
+	 * 取得攻擊動作ID
+	 *
+	 * @return 動作ID
+	 */
 	public int getActId() {
 		return _attckActId;
 	}
 
+	/**
+	 * 取得攻擊圖形ID
+	 *
+	 * @return 圖形ID
+	 */
 	public int getGfxId() {
 		return _attckGrfxId;
 	}
 
+	/**
+	 * 建立普通攻擊實例
+	 * <p>此建構子用於一般的物理攻擊，不包含技能效果</p>
+	 *
+	 * @param attacker 攻擊者（可以是玩家或NPC）
+	 * @param target 攻擊目標（可以是玩家或NPC）
+	 * @see #L1Attack(L1Character, L1Character, int) 技能攻擊建構子
+	 */
 	public L1Attack(L1Character attacker, L1Character target) {
 		this(attacker, target, 0);
 	}
 
+	/**
+	 * 建立攻擊實例（支援技能攻擊）
+	 * <p>此建構子會根據攻擊者和目標的類型，自動初始化所有相關的攻擊參數，包括：</p>
+	 * <ul>
+	 *   <li>判定攻擊計算類型（PC_PC、PC_NPC、NPC_PC、NPC_NPC）</li>
+	 *   <li>讀取武器資訊（當攻擊者為玩家時）</li>
+	 *   <li>載入技能資料（當指定技能ID時）</li>
+	 *   <li>設定彈藥（弓箭或飛刀）</li>
+	 *   <li>計算屬性補正（STR或DEX）</li>
+	 * </ul>
+	 *
+	 * <h3>武器類型處理</h3>
+	 * <ul>
+	 *   <li><b>Type 20（弓箭）：</b>使用DEX傷害補正，需要箭矢</li>
+	 *   <li><b>Type 62（鐵手甲）：</b>使用DEX傷害補正，需要飛刀</li>
+	 *   <li><b>其他近戰武器：</b>使用STR傷害補正，會計算耐久度損耗</li>
+	 * </ul>
+	 *
+	 * @param attacker 攻擊者（L1PcInstance或L1NpcInstance）
+	 * @param target 攻擊目標（L1PcInstance或L1NpcInstance）
+	 * @param skillId 技能ID（0表示普通攻擊，非0表示使用技能攻擊）
+	 * @see L1PcInstance 玩家角色類別
+	 * @see L1NpcInstance NPC/怪物類別
+	 * @see SkillsTable#getTemplate(int) 取得技能模板
+	 */
 	public L1Attack(L1Character attacker, L1Character target, int skillId) {
 		_skillId = skillId;
 		if (_skillId != 0) {
@@ -350,11 +589,42 @@ public class L1Attack {
 
 	/* ■■■■■■■■■■■■■■■■ 命中判定 ■■■■■■■■■■■■■■■■ */
 
-	// 擁有這些狀態的, 不會受到傷害(無敵)
+	/**
+	 * 無敵狀態技能列表
+	 * <p>擁有這些技能效果的角色將不會受到任何攻擊傷害</p>
+	 */
 	private static final int[] INVINCIBLE = { ABSOLUTE_BARRIER, ICE_LANCE,
 			FREEZING_BLIZZARD, FREEZING_BREATH, EARTH_BIND,
 			ICE_LANCE_COCKATRICE, ICE_LANCE_BASILISK };
 
+	/**
+	 * 計算攻擊是否命中
+	 * <p>此方法是命中判定的主入口，會根據攻擊類型調用對應的命中計算方法</p>
+	 *
+	 * <h3>命中判定流程</h3>
+	 * <ol>
+	 *   <li>檢查目標是否處於無敵狀態（絕對屏障、冰矛術等）</li>
+	 *   <li>檢查武器射程是否足夠</li>
+	 *   <li>檢查遠程武器是否有彈藥（箭矢或飛刀）</li>
+	 *   <li>檢查攻擊路徑是否有障礙物阻擋</li>
+	 *   <li>檢查特殊武器限制（試練之劍無法攻擊）</li>
+	 *   <li>根據攻擊類型計算實際命中率</li>
+	 * </ol>
+	 *
+	 * <h3>特殊情況處理</h3>
+	 * <ul>
+	 *   <li>武器ID 190（沙哈之弓）不需要箭矢</li>
+	 *   <li>武器ID 247-249（試練之劍）無法進行攻擊</li>
+	 *   <li>射程-1表示全畫面攻擊</li>
+	 *   <li>對大型怪物射程+1補正</li>
+	 * </ul>
+	 *
+	 * @return true表示命中，false表示未命中
+	 * @see #calcPcPcHit() 玩家對玩家命中計算
+	 * @see #calcPcNpcHit() 玩家對NPC命中計算
+	 * @see #calcNpcPcHit() NPC對玩家命中計算
+	 * @see #calcNpcNpcHit() NPC對NPC命中計算
+	 */
 	public boolean calcHit() {
 		// 檢查無敵狀態
 		for (int skillId : INVINCIBLE) {
@@ -399,6 +669,13 @@ public class L1Attack {
 		return _isHit;
 	}
 
+	/**
+	 * 計算近戰武器的命中率加成
+	 * <p>包含裝備加成、魔法加成、料理效果等</p>
+	 *
+	 * @param hitRate 基礎命中率
+	 * @return 加上近戰加成後的命中率
+	 */
 	private int calShortRageHit(int hitRate) {
 		int shortHit = hitRate + _pc.getHitup() + _pc.getOriginalHitup();
 		// 防具增加命中
@@ -413,6 +690,13 @@ public class L1Attack {
 		return shortHit;
 	}
 
+	/**
+	 * 計算遠程武器的命中率加成
+	 * <p>包含弓箭/鐵手甲裝備加成、魔法加成、料理效果等</p>
+	 *
+	 * @param hitRate 基礎命中率
+	 * @return 加上遠程加成後的命中率
+	 */
 	private int calLongRageHit(int hitRate) {
 		int longHit = hitRate + _pc.getBowHitup() + _pc.getOriginalBowHitup();
 		// 防具增加命中
@@ -426,11 +710,36 @@ public class L1Attack {
 		return longHit;
 	}
 
-	// ●●●● プレイヤー から プレイヤー への命中判定 ●●●●
-	/*
-	 * ＰＣへの命中率 ＝（PCのLv＋クラス補正＋STR補正＋DEX補正＋武器補正＋DAIの枚数/2＋魔法補正）×0.68－10
-	 * これで算出された数値は自分が最大命中(95%)を与える事のできる相手側PCのAC そこから相手側PCのACが1良くなる毎に自命中率から1引いていく
-	 * 最小命中率5% 最大命中率95%
+	/**
+	 * 計算玩家對玩家的命中判定
+	 * <p>PvP命中計算使用D20骰子系統，結合攻擊者命中值與防禦者AC進行判定</p>
+	 *
+	 * <h3>命中率計算公式</h3>
+	 * <pre>
+	 * 基礎命中 = 等級 + STR補正 + DEX補正 + 武器命中 + 強化值/2 + 裝備加成 + 魔法加成
+	 * 攻擊骰 = 1d20 + 基礎命中 - 10 - 目標閃避 + 目標負閃避
+	 * 防禦骰 = 10 - 目標AC（AC為負時加入隨機值）
+	 * </pre>
+	 *
+	 * <h3>判定機制</h3>
+	 * <ul>
+	 *   <li><b>大失敗(Fumble)：</b>攻擊骰 ≤ 基礎命中-9 → 必定Miss</li>
+	 *   <li><b>爆擊(Critical)：</b>攻擊骰 ≥ 基礎命中+10 → 必定命中</li>
+	 *   <li><b>一般判定：</b>攻擊骰 > 防禦骰 → 命中</li>
+	 * </ul>
+	 *
+	 * <h3>特殊規則</h3>
+	 * <ul>
+	 *   <li>奇古獸（Type 17/19）命中率固定100%</li>
+	 *   <li>負重影響：81-121(-1)、122-160(-3)、161-200(-5)</li>
+	 *   <li>弓箭命中後需額外進行ER閃避判定</li>
+	 *   <li>魔法娃娃傷害迴避效果可強制Miss</li>
+	 * </ul>
+	 *
+	 * @return true表示命中，false表示未命中
+	 * @see #calShortRageHit(int) 近戰命中加成計算
+	 * @see #calLongRageHit(int) 遠程命中加成計算
+	 * @see #calcErEvasion() ER閃避判定
 	 */
 	private boolean calcPcPcHit() {
 		_hitRate = _pc.getLevel();
@@ -571,10 +880,27 @@ public class L1Attack {
 		 */
 	}
 
-	// ●●●● プレイヤー から ＮＰＣ への命中判定 ●●●●
+	/**
+	 * 計算玩家對NPC/怪物的命中判定
+	 * <p>PvE命中計算同樣使用D20骰子系統，但判定機制與PvP略有不同</p>
+	 *
+	 * <h3>命中率計算</h3>
+	 * <pre>
+	 * 基礎命中 = 等級 + STR補正 + DEX補正 + 武器命中 + 強化值/2 + 裝備加成
+	 * 攻擊骰 = 1d20 + 基礎命中 - 10 - 怪物閃避
+	 * 防禦骰 = 10 - 怪物AC
+	 * </pre>
+	 *
+	 * <h3>特殊規則</h3>
+	 * <ul>
+	 *   <li>奇古獸（Type 17/19）命中率固定100%</li>
+	 *   <li>負重影響命中率（同PvP）</li>
+	 *   <li>特定狀態下限制攻擊某些NPC（isAttackMiss檢查）</li>
+	 * </ul>
+	 *
+	 * @return true表示命中，false表示未命中
+	 */
 	private boolean calcPcNpcHit() {
-		// ＮＰＣへの命中率
-		// ＝（PCのLv＋クラス補正＋STR補正＋DEX補正＋武器補正＋DAIの枚数/2＋魔法補正）×5－{NPCのAC×（-5）}
 		_hitRate = _pc.getLevel();
 
 		if (_pc.getStr() > 59) {
@@ -645,7 +971,26 @@ public class L1Attack {
 		return _hitRate >= rnd;
 	}
 
-	// ●●●● ＮＰＣ から プレイヤー への命中判定 ●●●●
+	/**
+	 * 計算NPC/怪物對玩家的命中判定
+	 * <p>怪物攻擊玩家的命中計算，包含寵物和召喚獸的特殊處理</p>
+	 *
+	 * <h3>命中計算</h3>
+	 * <pre>
+	 * 基礎命中 = 怪物等級 + 怪物命中加成 + 寵物武器加成（如適用）
+	 * 攻擊骰 = 1d20 + 基礎命中 - 1 - 玩家閃避
+	 * Fumble = 基礎命中, Critical = 基礎命中+19
+	 * </pre>
+	 *
+	 * <h3>特殊規則</h3>
+	 * <ul>
+	 *   <li>寵物/召喚獸在安全區無法攻擊</li>
+	 *   <li>遠程攻擊（攻擊距離≥10且距離≥2格）需ER閃避判定</li>
+	 *   <li>魔法娃娃傷害迴避可強制Miss</li>
+	 * </ul>
+	 *
+	 * @return true表示命中，false表示未命中
+	 */
 	private boolean calcNpcPcHit() {
 
 		_hitRate += _npc.getLevel();
@@ -712,7 +1057,12 @@ public class L1Attack {
 		return _hitRate >= rnd;
 	}
 
-	// ●●●● ＮＰＣ から ＮＰＣ への命中判定 ●●●●
+	/**
+	 * 計算NPC對NPC的命中判定
+	 * <p>用於寵物/召喚獸互相攻擊或怪物間戰鬥的命中計算</p>
+	 *
+	 * @return true表示命中，false表示未命中
+	 */
 	private boolean calcNpcNpcHit() {
 
 		_hitRate += _npc.getLevel();
@@ -765,7 +1115,12 @@ public class L1Attack {
 		return _hitRate >= rnd;
 	}
 
-	// ●●●● ＥＲによる回避判定 ●●●●
+	/**
+	 * 計算ER（Evasion Rate）閃避判定
+	 * <p>遠程攻擊命中後的額外閃避檢查，主要用於弓箭攻擊</p>
+	 *
+	 * @return true表示無法閃避（攻擊成功），false表示成功閃避
+	 */
 	private boolean calcErEvasion() {
 		int er = _targetPc.getEr();
 
@@ -775,6 +1130,16 @@ public class L1Attack {
 
 	/* ■■■■■■■■■■■■■■■ ダメージ算出 ■■■■■■■■■■■■■■■ */
 
+	/**
+	 * 計算攻擊傷害
+	 * <p>根據攻擊類型調用對應的傷害計算方法</p>
+	 *
+	 * @return 最終計算的傷害值
+	 * @see #calcPcPcDamage() 玩家對玩家傷害
+	 * @see #calcPcNpcDamage() 玩家對NPC傷害
+	 * @see #calcNpcPcDamage() NPC對玩家傷害
+	 * @see #calcNpcNpcDamage() NPC對NPC傷害
+	 */
 	public int calcDamage() {
 		if (_calcType == PC_PC) {
 			_damage = calcPcPcDamage();
@@ -788,6 +1153,33 @@ public class L1Attack {
 		return _damage;
 	}
 
+	/**
+	 * 計算武器基礎傷害
+	 * <p>根據武器類型和屬性計算武器本身造成的傷害</p>
+	 *
+	 * <h3>計算要素</h3>
+	 * <ul>
+	 *   <li>武器基礎傷害（1 ~ 武器最大傷害的隨機值）</li>
+	 *   <li>武器額外傷害加成</li>
+	 *   <li>武器強化等級加成</li>
+	 *   <li>祝福/銀製武器對不死系額外傷害（PvE）</li>
+	 *   <li>武器屬性附魔傷害</li>
+	 * </ul>
+	 *
+	 * <h3>特殊武器處理</h3>
+	 * <ul>
+	 *   <li><b>鋼爪（Type 58）：</b>黑妖專用，有機率造成最大傷害並顯示爪痕特效</li>
+	 *   <li><b>雙刀（Type 54）：</b>有機率觸發雙擊（傷害x2）</li>
+	 *   <li><b>弓箭/鐵手甲：</b>武器本身不計傷害（彈藥計算在遠程傷害中）</li>
+	 *   <li><b>火焰之魂技能：</b>武器傷害直接取最大值</li>
+	 *   <li><b>雙重斬技能：</b>黑妖武器有33%機率傷害x2</li>
+	 * </ul>
+	 *
+	 * @param weaponMaxDamage 武器最大傷害值
+	 * @return 計算後的武器總傷害
+	 * @see #calcMaterialBlessDmg() 材質祝福額外傷害
+	 * @see #calcAttrEnchantDmg() 屬性附魔傷害
+	 */
 	private int calcWeponDamage(int weaponMaxDamage) {
 		int weaponDamage = Random.nextInt(weaponMaxDamage) + 1;
 		// 判斷魔法輔助
@@ -828,6 +1220,28 @@ public class L1Attack {
 		return weaponDamage;
 	}
 
+	/**
+	 * 計算遠程武器傷害加成
+	 * <p>計算弓箭和鐵手甲的傷害，包含彈藥傷害和裝備加成</p>
+	 *
+	 * <h3>計算要素</h3>
+	 * <ul>
+	 *   <li>弓箭傷害加成（getBowDmgup）</li>
+	 *   <li>箭矢/飛刀傷害（對小型或大型目標）</li>
+	 *   <li>防具傷害加成</li>
+	 *   <li>料理buff傷害加成</li>
+	 * </ul>
+	 *
+	 * <h3>特殊規則</h3>
+	 * <ul>
+	 *   <li>沙哈之弓（ID 190）無需箭矢，固定15點傷害</li>
+	 *   <li>堅硬怪物（is_hard）箭矢傷害減半</li>
+	 *   <li>大型怪物使用箭矢的大型傷害值</li>
+	 * </ul>
+	 *
+	 * @param dmg 基礎傷害
+	 * @return 加上遠程加成後的傷害
+	 */
 	private double calLongRageDamage(double dmg) {
 		double longdmg = dmg + _pc.getBowDmgup() + _pc.getOriginalBowDmgup();
 
@@ -867,6 +1281,30 @@ public class L1Attack {
 		return longdmg;
 	}
 
+	/**
+	 * 計算近戰武器傷害加成
+	 * <p>計算近戰武器的各種傷害加成，包含魔法buff和特殊武器效果</p>
+	 *
+	 * <h3>計算要素</h3>
+	 * <ul>
+	 *   <li>近戰傷害加成（getDmgup）</li>
+	 *   <li>弱點曝光效果判定</li>
+	 *   <li>魔法buff傷害加成（calcBuffDamage）</li>
+	 *   <li>防具傷害加成</li>
+	 *   <li>料理buff傷害加成</li>
+	 * </ul>
+	 *
+	 * <h3>特殊武器處理</h3>
+	 * <ul>
+	 *   <li>空手（Type 0）：固定傷害計算</li>
+	 *   <li>奇古獸（Type 17/19）：特殊傷害計算公式</li>
+	 * </ul>
+	 *
+	 * @param dmg 基礎傷害
+	 * @return 加上近戰加成後的傷害
+	 * @see #WeaknessExposure() 弱點曝光判定
+	 * @see #calcBuffDamage(double) 魔法buff傷害
+	 */
 	private double calShortRageDamage(double dmg) {
 		double shortdmg = dmg + _pc.getDmgup() + _pc.getOriginalDmgup();
 		// 弱點曝光發動判斷
@@ -890,7 +1328,30 @@ public class L1Attack {
 		return shortdmg;
 	}
 
-	// ●●●● プレイヤー から プレイヤー へのダメージ算出 ●●●●
+	/**
+	 * 計算玩家對玩家的傷害
+	 * <p>PvP傷害計算，包含所有武器技能、魔法效果和傷害減免</p>
+	 *
+	 * <h3>傷害計算流程</h3>
+	 * <ol>
+	 *   <li>計算武器基礎傷害</li>
+	 *   <li>加上屬性補正（STR或DEX）</li>
+	 *   <li>加上遠程/近戰加成</li>
+	 *   <li>加上特殊武器技能傷害</li>
+	 *   <li>減去目標防具減免</li>
+	 *   <li>減去魔法娃娃減免</li>
+	 *   <li>減去料理/技能減免</li>
+	 * </ul>
+	 *
+	 * <h3>特殊技能</h3>
+	 * <ul>
+	 *   <li><b>破壞（SMASH）：</b>額外+15傷害</li>
+	 *   <li><b>骷髏毀壞（BONE_BREAK）：</b>額外+10傷害，可能觸發debuff</li>
+	 *   <li><b>免疫傷害（IMMUNE_TO_HARM）：</b>目標傷害減半</li>
+	 * </ul>
+	 *
+	 * @return 最終傷害值
+	 */
 	public int calcPcPcDamage() {
 		// 計算武器總傷害
 		int weaponTotalDamage = calcWeponDamage(_weaponSmall);
@@ -1010,7 +1471,20 @@ public class L1Attack {
 		return (int) dmg;
 	}
 
-	// ●●●● プレイヤー から ＮＰＣ へのダメージ算出 ●●●●
+	/**
+	 * 計算玩家對NPC/怪物的傷害
+	 * <p>PvE傷害計算，包含目標體型判定和特殊武器效果</p>
+	 *
+	 * <h3>重要特性</h3>
+	 * <ul>
+	 *   <li>根據怪物體型（small/large）選擇對應的武器傷害</li>
+	 *   <li>銀製/祝福武器對不死系額外傷害</li>
+	 *   <li>非攻城時期對寵物/召喚獸傷害÷8</li>
+	 *   <li>怪物傷害減免計算</li>
+	 * </ul>
+	 *
+	 * @return 最終傷害值
+	 */
 	private int calcPcNpcDamage() {
 		int weaponMaxDamage = 0;
 		if (_targetNpc.getNpcTemplate().get_size().equalsIgnoreCase("small")

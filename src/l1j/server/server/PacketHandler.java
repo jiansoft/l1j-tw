@@ -197,12 +197,277 @@ import l1j.server.server.model.Instance.L1PcInstance;
 // Referenced classes of package l1j.server.server:
 // Opcodes, LoginController, ClientThread, Logins
 
+/**
+ * 客戶端封包路由處理器。
+ * <p>
+ * 此類別負責接收從客戶端傳來的原始封包資料，解析封包中的 Opcode（操作碼），
+ * 並根據 Opcode 將封包分派到對應的客戶端封包處理器類別進行處理。
+ *
+ * <h3>工作原理</h3>
+ * <ol>
+ * <li>從原始封包資料中讀取第一個 byte 作為 Opcode</li>
+ * <li>使用 switch-case 結構比對 Opcode 與預定義的常數</li>
+ * <li>根據比對結果建立對應的封包處理器實例（C_* 類別）</li>
+ * <li>封包處理器的建構子會自動執行封包解析與業務邏輯</li>
+ * </ol>
+ *
+ * <h3>封包處理流程</h3>
+ * <pre>
+ * ClientThread 接收原始 bytes
+ *     ↓
+ * PacketHandler.handlePacket()
+ *     ↓
+ * 提取 Opcode (第一個 byte)
+ *     ↓
+ * Switch-case 比對 Opcode
+ *     ↓
+ * 建立對應的 C_* 處理器實例
+ *     ↓
+ * 處理器執行業務邏輯並回傳結果給客戶端
+ * </pre>
+ *
+ * <h3>封包分類</h3>
+ * 此處理器支援以下主要封包類型：
+ * <ul>
+ * <li><b>帳號與角色管理</b>：登入驗證、角色選擇、創建角色、刪除角色、登出</li>
+ * <li><b>移動與位置</b>：角色移動、改變朝向、傳送、進入傳送門</li>
+ * <li><b>戰鬥系統</b>：近戰攻擊、遠程攻擊、使用技能、選擇目標</li>
+ * <li><b>物品系統</b>：撿取物品、丟棄物品、使用物品、刪除物品、交易</li>
+ * <li><b>社交系統</b>：聊天（一般、密語、全域）、好友管理、組隊、結婚提議</li>
+ * <li><b>血盟系統</b>：創建血盟、加入血盟、離開血盟、驅逐成員、血盟戰爭、上傳/下載徽章、血盟推薦</li>
+ * <li><b>NPC 互動</b>：對話、商店購買、技能學習、雇傭士兵、傭兵選單</li>
+ * <li><b>介面操作</b>：書籤管理、倉庫存取、郵件、告示板、物品數量輸入</li>
+ * <li><b>城堡與領地</b>：稅率設定、戰爭時間、雇傭守衛</li>
+ * <li><b>寵物系統</b>：寵物選單、使用寵物物品</li>
+ * <li><b>其他功能</b>：心跳包、客戶端版本檢查、屬性點分配、角色重置、定點釣魚、角色配置</li>
+ * </ul>
+ *
+ * <h3>設計特點</h3>
+ * <ul>
+ * <li><b>無狀態設計</b>：每次封包處理都會建立新的處理器實例，避免狀態污染</li>
+ * <li><b>命名規則</b>：所有客戶端封包處理器類別以 "C_" 開頭，對應的伺服器封包以 "S_" 開頭</li>
+ * <li><b>統一路由</b>：所有客戶端封包都經過此類別進行統一分派</li>
+ * <li><b>錯誤容忍</b>：未知的 Opcode 會被忽略，不會導致伺服器崩潰</li>
+ * </ul>
+ *
+ * <h3>與其他類別的關係</h3>
+ * <ul>
+ * <li>{@link ClientThread}：負責維護與客戶端的網路連線，並呼叫此類別處理封包</li>
+ * <li>{@link Opcodes}：定義所有封包的 Opcode 常數</li>
+ * <li>C_* 類別：各種具體的客戶端封包處理器實作</li>
+ * <li>{@link L1PcInstance}：代表當前處理封包的玩家角色實例</li>
+ * </ul>
+ *
+ * @see ClientThread
+ * @see Opcodes
+ * @see l1j.server.server.clientpackets.C_Chat
+ * @see l1j.server.server.clientpackets.C_MoveChar
+ * @see l1j.server.server.clientpackets.C_Attack
+ * @see l1j.server.server.clientpackets.C_AuthLogin
+ */
 public class PacketHandler {
 
+	/**
+	 * 建構客戶端封包路由處理器。
+	 * <p>
+	 * 初始化封包處理器並綁定到指定的客戶端連線執行緒。
+	 * 此處理器將使用綁定的 ClientThread 來回傳處理結果給客戶端。
+	 *
+	 * @param clientthread 客戶端連線執行緒，用於回傳封包處理結果
+	 * @see ClientThread
+	 */
 	public PacketHandler(ClientThread clientthread) {
 		_client = clientthread;
 	}
 
+	/**
+	 * 處理客戶端封包的核心方法。
+	 * <p>
+	 * 此方法是整個封包路由系統的核心，負責解析封包中的 Opcode 並分派到對應的處理器。
+	 *
+	 * <h3>處理流程</h3>
+	 * <ol>
+	 * <li>從封包資料的第一個 byte 提取 Opcode（使用 & 0xff 轉換為無符號整數）</li>
+	 * <li>使用 switch-case 結構比對 Opcode</li>
+	 * <li>根據 Opcode 建立對應的客戶端封包處理器實例</li>
+	 * <li>處理器實例在建構子中自動執行封包解析與業務邏輯</li>
+	 * <li>如果 Opcode 未被識別，則忽略此封包（不會拋出例外）</li>
+	 * </ol>
+	 *
+	 * <h3>主要封包類型說明</h3>
+	 *
+	 * <h4>帳號與角色管理</h4>
+	 * <ul>
+	 * <li>{@code C_OPCODE_LOGINPACKET} / {@code C_OPCODE_BEANFUNLOGINPACKET} - 帳號登入驗證</li>
+	 * <li>{@code C_OPCODE_LOGINTOSERVER} - 選擇伺服器</li>
+	 * <li>{@code C_OPCODE_LOGINTOSERVEROK} - 確認進入伺服器</li>
+	 * <li>{@code C_OPCODE_NEWCHAR} - 創建新角色</li>
+	 * <li>{@code C_OPCODE_DELETECHAR} - 刪除角色</li>
+	 * <li>{@code C_OPCODE_CHANGECHAR} - 切換角色</li>
+	 * <li>{@code C_OPCODE_RESTART} - 重新開始（返回角色選擇畫面）</li>
+	 * <li>{@code C_OPCODE_RESTARTMENU} - 重新開始選單</li>
+	 * <li>{@code C_OPCODE_CLIENTVERSION} - 客戶端版本檢查</li>
+	 * <li>{@code C_OPCODE_CHARRESET} - 角色重置</li>
+	 * </ul>
+	 *
+	 * <h4>移動與位置</h4>
+	 * <ul>
+	 * <li>{@code C_OPCODE_MOVECHAR} - 角色移動</li>
+	 * <li>{@code C_OPCODE_CHANGEHEADING} - 改變朝向</li>
+	 * <li>{@code C_OPCODE_TELEPORT} - 傳送</li>
+	 * <li>{@code C_OPCODE_ENTERPORTAL} - 進入傳送門</li>
+	 * <li>{@code C_OPCODE_SENDLOCATION} - 發送位置資訊</li>
+	 * <li>{@code C_OPCODE_SHIP} - 船隻相關</li>
+	 * </ul>
+	 *
+	 * <h4>戰鬥系統</h4>
+	 * <ul>
+	 * <li>{@code C_OPCODE_ATTACK} - 近戰攻擊</li>
+	 * <li>{@code C_OPCODE_ARROWATTACK} - 遠程攻擊（弓箭）</li>
+	 * <li>{@code C_OPCODE_USESKILL} - 使用技能</li>
+	 * <li>{@code C_OPCODE_SELECTTARGET} - 選擇目標</li>
+	 * <li>{@code C_OPCODE_FIGHT} - 戰鬥模式切換</li>
+	 * <li>{@code C_OPCODE_FIX_WEAPON_LIST} - 固定武器列表</li>
+	 * </ul>
+	 *
+	 * <h4>物品系統</h4>
+	 * <ul>
+	 * <li>{@code C_OPCODE_PICKUPITEM} - 撿取物品</li>
+	 * <li>{@code C_OPCODE_DROPITEM} - 丟棄物品</li>
+	 * <li>{@code C_OPCODE_USEITEM} - 使用物品</li>
+	 * <li>{@code C_OPCODE_DELETEINVENTORYITEM} - 刪除背包物品</li>
+	 * <li>{@code C_OPCODE_GIVEITEM} - 給予物品（交易/丟給其他玩家）</li>
+	 * <li>{@code C_OPCODE_AMOUNT} - 物品數量輸入</li>
+	 * </ul>
+	 *
+	 * <h4>交易系統</h4>
+	 * <ul>
+	 * <li>{@code C_OPCODE_TRADE} - 開始交易</li>
+	 * <li>{@code C_OPCODE_TRADEADDITEM} - 交易中加入物品</li>
+	 * <li>{@code C_OPCODE_TRADEADDOK} - 確認交易</li>
+	 * <li>{@code C_OPCODE_TRADEADDCANCEL} - 取消交易</li>
+	 * <li>{@code C_OPCODE_PRIVATESHOPLIST} - 個人商店列表</li>
+	 * </ul>
+	 *
+	 * <h4>社交系統</h4>
+	 * <ul>
+	 * <li>{@code C_OPCODE_CHAT} - 一般聊天</li>
+	 * <li>{@code C_OPCODE_CHATWHISPER} - 密語</li>
+	 * <li>{@code C_OPCODE_CHATGLOBAL} - 全域聊天</li>
+	 * <li>{@code C_OPCODE_CAHTPARTY} - 組隊聊天</li>
+	 * <li>{@code C_OPCODE_ADDBUDDY} - 新增好友</li>
+	 * <li>{@code C_OPCODE_DELBUDDY} - 刪除好友</li>
+	 * <li>{@code C_OPCODE_BUDDYLIST} - 好友列表</li>
+	 * <li>{@code C_OPCODE_WHO} - 查詢線上玩家</li>
+	 * <li>{@code C_OPCODE_CALL} - 呼叫玩家</li>
+	 * <li>{@code C_OPCODE_PROPOSE} - 結婚提議</li>
+	 * </ul>
+	 *
+	 * <h4>組隊系統</h4>
+	 * <ul>
+	 * <li>{@code C_OPCODE_CREATEPARTY} - 創建隊伍</li>
+	 * <li>{@code C_OPCODE_PARTYLIST} - 隊伍列表</li>
+	 * <li>{@code C_OPCODE_LEAVEPARTY} - 離開隊伍</li>
+	 * <li>{@code C_OPCODE_BANPARTY} - 驅逐隊員</li>
+	 * </ul>
+	 *
+	 * <h4>血盟系統</h4>
+	 * <ul>
+	 * <li>{@code C_OPCODE_CREATECLAN} - 創建血盟</li>
+	 * <li>{@code C_OPCODE_JOINCLAN} - 加入血盟</li>
+	 * <li>{@code C_OPCODE_LEAVECLANE} - 離開血盟</li>
+	 * <li>{@code C_OPCODE_BANCLAN} - 驅逐血盟成員</li>
+	 * <li>{@code C_OPCODE_PLEDGE} - 血盟相關操作</li>
+	 * <li>{@code C_OPCODE_PLEDGECONTENT} - 血盟內容</li>
+	 * <li>{@code C_OPCODE_PLEDGE_RECOMMENDATION} - 血盟推薦</li>
+	 * <li>{@code C_OPCODE_WAR} - 血盟戰爭</li>
+	 * <li>{@code C_OPCODE_CHANGEWARTIME} - 變更戰爭時間</li>
+	 * <li>{@code C_OPCODE_EMBLEMUPLOAD} - 上傳血盟徽章</li>
+	 * <li>{@code C_OPCODE_EMBLEMDOWNLOAD} - 下載血盟徽章</li>
+	 * </ul>
+	 *
+	 * <h4>NPC 互動</h4>
+	 * <ul>
+	 * <li>{@code C_OPCODE_NPCTALK} - NPC 對話</li>
+	 * <li>{@code C_OPCODE_NPCACTION} - NPC 動作</li>
+	 * <li>{@code C_OPCODE_SHOP} - 商店購買</li>
+	 * <li>{@code C_OPCODE_SKILLBUY} - 技能學習</li>
+	 * <li>{@code C_OPCODE_SKILLBUYOK} - 確認技能學習</li>
+	 * <li>{@code C_OPCODE_SELECTLIST} - 選擇列表（NPC 選項）</li>
+	 * <li>{@code C_OPCODE_HIRESOLDIER} - 雇傭士兵</li>
+	 * </ul>
+	 *
+	 * <h4>倉庫與郵件</h4>
+	 * <ul>
+	 * <li>{@code C_OPCODE_DEPOSIT} - 存入倉庫</li>
+	 * <li>{@code C_OPCODE_DRAWAL} - 取出倉庫</li>
+	 * <li>{@code C_OPCODE_WAREHOUSELOCK} - 倉庫密碼</li>
+	 * <li>{@code C_OPCODE_MAIL} - 郵件</li>
+	 * </ul>
+	 *
+	 * <h4>介面與配置</h4>
+	 * <ul>
+	 * <li>{@code C_OPCODE_BOOKMARK} - 新增書籤</li>
+	 * <li>{@code C_OPCODE_BOOKMARKDELETE} - 刪除書籤</li>
+	 * <li>{@code C_OPCODE_CHARACTERCONFIG} - 角色配置</li>
+	 * <li>{@code C_OPCODE_ATTR} - 屬性點分配</li>
+	 * <li>{@code C_OPCODE_TITLE} - 稱號</li>
+	 * <li>{@code C_OPCODE_EXCLUDE} - 排除（屏蔽玩家）</li>
+	 * </ul>
+	 *
+	 * <h4>告示板</h4>
+	 * <ul>
+	 * <li>{@code C_OPCODE_BOARD} - 告示板</li>
+	 * <li>{@code C_OPCODE_BOARDREAD} - 讀取告示</li>
+	 * <li>{@code C_OPCODE_BOARDWRITE} - 撰寫告示</li>
+	 * <li>{@code C_OPCODE_BOARDDELETE} - 刪除告示</li>
+	 * </ul>
+	 *
+	 * <h4>城堡與領地</h4>
+	 * <ul>
+	 * <li>{@code C_OPCODE_TAXRATE} - 稅率設定</li>
+	 * <li>{@code C_OPCODE_DOOR} - 城門控制</li>
+	 * </ul>
+	 *
+	 * <h4>寵物系統</h4>
+	 * <ul>
+	 * <li>{@code C_OPCODE_PETMENU} - 寵物選單</li>
+	 * <li>{@code C_OPCODE_USEPETITEM} - 使用寵物物品</li>
+	 * </ul>
+	 *
+	 * <h4>其他功能</h4>
+	 * <ul>
+	 * <li>{@code C_OPCODE_KEEPALIVE} - 心跳包（保持連線）</li>
+	 * <li>{@code C_OPCODE_RESULT} - 結果確認</li>
+	 * <li>{@code C_OPCODE_EXTCOMMAND} - 擴展指令</li>
+	 * <li>{@code C_OPCODE_CHECKPK} - 檢查 PK 狀態</li>
+	 * <li>{@code C_OPCODE_EXIT_GHOST} - 退出觀察者模式</li>
+	 * <li>{@code C_OPCODE_FISHCLICK} - 釣魚點擊</li>
+	 * <li>{@code C_OPCODE_QUITGAME} - 退出遊戲（客戶端發送快捷列與背包狀態）</li>
+	 * </ul>
+	 *
+	 * <h3>錯誤處理</h3>
+	 * <ul>
+	 * <li>未知的 Opcode 會進入 default 分支，被靜默忽略</li>
+	 * <li>不會因為未知封包而中斷連線或拋出例外</li>
+	 * <li>有助於容忍客戶端版本差異或惡意封包</li>
+	 * </ul>
+	 *
+	 * <h3>設計考量</h3>
+	 * <ul>
+	 * <li><b>無狀態</b>：每個封包都建立新的處理器實例，避免狀態衝突</li>
+	 * <li><b>自動執行</b>：處理器的建構子會自動執行業務邏輯，無需手動呼叫方法</li>
+	 * <li><b>集中管理</b>：所有封包路由邏輯集中在此方法中，便於維護</li>
+	 * </ul>
+	 *
+	 * @param abyte0 客戶端傳送的原始封包資料（已解密），第一個 byte 為 Opcode
+	 * @param object 當前處理封包的玩家角色實例，登入階段可能為 null
+	 * @throws Exception 處理封包過程中可能拋出的例外
+	 *
+	 * @see Opcodes
+	 * @see ClientThread
+	 * @see L1PcInstance
+	 */
 	public void handlePacket(byte abyte0[], L1PcInstance object) throws Exception {
 		int i = abyte0[0] & 0xff;
 
@@ -583,5 +848,15 @@ public class PacketHandler {
 		// ").append(i).toString());
 	}
 
+	/**
+	 * 客戶端連線執行緒。
+	 * <p>
+	 * 此欄位保存與客戶端建立連線的 ClientThread 實例，
+	 * 用於在封包處理完成後將伺服器回應封包傳送回客戶端。
+	 * <p>
+	 * 所有封包處理器（C_* 類別）都會使用此連線來發送回應。
+	 *
+	 * @see ClientThread
+	 */
 	private final ClientThread _client;
 }

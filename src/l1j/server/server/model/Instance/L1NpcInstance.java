@@ -75,68 +75,171 @@ import l1j.server.server.utils.TimerPool;
 import l1j.server.server.utils.collections.Lists;
 import l1j.server.server.utils.collections.Maps;
 
+/**
+ * NPC 實例類別
+ * <p>
+ * 這是遊戲中所有 NPC（Non-Player Character）的基礎類別，包括怪物、商人、守衛等。
+ * 實現了完整的 NPC AI 系統，包括目標搜尋、移動、攻擊、技能使用等核心功能。
+ * </p>
+ *
+ * <h3>主要功能：</h3>
+ * <ul>
+ * <li><b>AI 系統</b>：實現自動化的 NPC 行為邏輯</li>
+ * <li><b>目標管理</b>：搜尋、鎖定和追蹤攻擊目標</li>
+ * <li><b>移動系統</b>：路徑尋找、移動執行、傳送</li>
+ * <li><b>戰鬥系統</b>：物理攻擊、技能使用、道具使用</li>
+ * <li><b>仇恨系統</b>：管理多目標仇恨值</li>
+ * <li><b>物品管理</b>：撿拾、使用、掉落物品</li>
+ * </ul>
+ *
+ * <h3>AI 系統架構：</h3>
+ * <p>
+ * AI 系統基於定時循環執行的 {@link #AIProcess()} 方法，支援兩種實現方式：
+ * </p>
+ * <ol>
+ * <li><b>Timer 池實現</b>（NpcAITimerImpl）：使用共享 Timer 池，適合大量 NPC</li>
+ * <li><b>執行緒實現</b>（NpcAIThreadImpl）：每個 NPC 使用獨立執行緒，適合重要 NPC</li>
+ * </ol>
+ *
+ * <h3>使用範例：</h3>
+ * <pre>
+ * // 創建 NPC 實例
+ * L1Npc template = NpcTable.getInstance().getTemplate(npcId);
+ * L1NpcInstance npc = new L1MonsterInstance(template);
+ *
+ * // 設定位置並加入世界
+ * npc.setX(x);
+ * npc.setY(y);
+ * npc.setMap(mapId);
+ * L1World.getInstance().storeObject(npc);
+ *
+ * // 啟動 AI
+ * npc.onNpcAI();
+ * </pre>
+ *
+ * @author L1J-TW
+ * @version 3.80c
+ * @see L1Character
+ * @see L1MonsterInstance
+ * @see L1MerchantInstance
+ * @see L1GuardInstance
+ */
 public class L1NpcInstance extends L1Character {
 	private static final long serialVersionUID = 1L;
 
+	// ========== 速度類型常數 ==========
+
+	/** 移動速度類型 - 用於計算移動間隔時間 */
 	public static final int MOVE_SPEED = 0;
 
+	/** 攻擊速度類型 - 用於計算攻擊間隔時間 */
 	public static final int ATTACK_SPEED = 1;
 
+	/** 施法速度類型 - 用於計算施法間隔時間 */
 	public static final int MAGIC_SPEED = 2;
 
+	// ========== 隱藏狀態常數 ==========
+
+	/** 正常狀態（可見） */
 	public static final int HIDDEN_STATUS_NONE = 0;
 
+	/** 地底狀態（遁地） - NPC 在地底移動，無法被攻擊 */
 	public static final int HIDDEN_STATUS_SINK = 1;
 
+	/** 飛行狀態 - NPC 在空中飛行，無視地形障礙 */
 	public static final int HIDDEN_STATUS_FLY = 2;
 
+	/** 冰凍狀態 - NPC 被冰凍封印 */
 	public static final int HIDDEN_STATUS_ICE = 3;
 
+	// ========== 聊天時機常數 ==========
+
+	/** 聊天時機：出現時 */
 	public static final int CHAT_TIMING_APPEARANCE = 0;
 
+	/** 聊天時機：死亡時 */
 	public static final int CHAT_TIMING_DEAD = 1;
 
+	/** 聊天時機：隱藏時 */
 	public static final int CHAT_TIMING_HIDE = 2;
 
+	/** 聊天時機：遊戲時間觸發 */
 	public static final int CHAT_TIMING_GAME_TIME = 3;
 
+	/** 日誌記錄器 */
 	private static Logger _log = Logger.getLogger(L1NpcInstance.class.getName());
 
+	// ========== 核心屬性 ==========
+
+	/** NPC 模板數據，包含 NPC 的基礎屬性（HP、MP、攻擊力等） */
 	private L1Npc _npcTemplate;
 
+	/** 生成點管理器，記錄 NPC 的生成位置和重生時間 */
 	private L1Spawn _spawn;
 
-	private int _spawnNumber; // L1Spawnで管理されているナンバー
+	/** 生成編號，在 L1Spawn 中管理的編號 */
+	private int _spawnNumber;
 
-	private int _petcost; // ペットになったときのコスト
+	/** 寵物消耗值，當 NPC 變成寵物時的消耗 */
+	private int _petcost;
 
+	/** NPC 背包，存儲 NPC 持有的物品和掉落物 */
 	public L1Inventory _inventory = new L1Inventory();
 
+	/** 技能使用管理器，管理 NPC 的技能釋放邏輯 */
 	private L1MobSkillUse mobSkill;
 
-	// 対象を初めて発見したとき。（テレポート用）
+	/** 是否首次發現目標（用於傳送判定） */
 	private boolean firstFound = true;
 
-	// 経路探索範囲（半径） ※上げすぎ注意！！
+	/**
+	 * 路徑搜尋範圍（半徑）
+	 * <p>
+	 * 警告：數值越大計算越耗時，建議值：10-20
+	 * </p>
+	 */
 	public static int courceRange = 15;
 
-	// 吸われたMP
+	/** 被吸取的 MP 數量 */
 	private int _drainedMana = 0;
 
-	// 休憩
+	/** 是否處於休息狀態 */
 	private boolean _rest = false;
 
-	// ランダム移動時の距離と方向
+	/** 隨機移動時的距離 */
 	private int _randomMoveDistance = 0;
 
+	/** 隨機移動時的方向 */
 	private int _randomMoveDirection = 0;
 
-	// ■■■■■■■■■■■■■ ＡＩ関連 ■■■■■■■■■■■
+	// ========== AI 系統相關 ==========
 
+	/**
+	 * NPC AI 接口
+	 * <p>
+	 * 定義 AI 的基本啟動方法，由 NpcAITimerImpl 和 NpcAIThreadImpl 實現
+	 * </p>
+	 */
 	interface NpcAI {
+		/**
+		 * 啟動 AI 執行
+		 */
 		public void start();
 	}
 
+	/**
+	 * 啟動 AI 系統
+	 * <p>
+	 * 根據配置文件的 NpcAIImplType 參數選擇實現方式：
+	 * <ul>
+	 * <li>Type 1：使用 Timer 池實現（預設，適合大量 NPC）</li>
+	 * <li>Type 2：使用獨立執行緒實現（適合重要 NPC）</li>
+	 * </ul>
+	 * </p>
+	 *
+	 * @see NpcAITimerImpl
+	 * @see NpcAIThreadImpl
+	 */
 	protected void startAI() {
 		if (Config.NPCAI_IMPLTYPE == 1) {
 			new NpcAITimerImpl().start();
@@ -148,13 +251,25 @@ public class L1NpcInstance extends L1Character {
 	}
 
 	/**
-	 * マルチ(コア)プロセッサをサポートする為のタイマープール。 AIの実装タイプがタイマーの場合に使用される。
+	 * 多核心處理器支援的 Timer 池
+	 * <p>
+	 * AI 實現類型為 Timer 時使用，共享 4 個 Timer 實例
+	 * </p>
 	 */
 	private static final TimerPool _timerPool = new TimerPool(4);
 
+	/**
+	 * NPC AI Timer 池實現
+	 * <p>
+	 * 使用共享的 Timer 池來執行 AI 邏輯，降低執行緒開銷，適合大量 NPC。
+	 * </p>
+	 */
 	class NpcAITimerImpl extends TimerTask implements NpcAI {
 		/**
-		 * 死亡処理の終了を待つタイマー
+		 * 死亡同步計時器
+		 * <p>
+		 * 等待 NPC 死亡處理完成後再清理 AI 資源
+		 * </p>
 		 */
 		private class DeathSyncTimer extends TimerTask {
 			private void schedule(int delay) {
@@ -223,12 +338,28 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * NPC AI 執行緒實現
+	 * <p>
+	 * 每個 NPC 使用獨立執行緒執行 AI 邏輯，提供更精確的時間控制，但執行緒開銷較高。
+	 * 適合重要 NPC（如 Boss）使用。
+	 * </p>
+	 */
 	class NpcAIThreadImpl implements Runnable, NpcAI {
+		/**
+		 * 啟動 AI 執行緒
+		 */
 		@Override
 		public void start() {
 			GeneralThreadPool.getInstance().execute(NpcAIThreadImpl.this);
 		}
 
+		/**
+		 * AI 執行緒主循環
+		 * <p>
+		 * 持續執行 AI 邏輯直到 NPC 死亡或被銷毀
+		 * </p>
+		 */
 		@Override
 		public void run() {
 			try {
@@ -275,14 +406,36 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
-	// ＡＩの処理 (返り値はＡＩ処理を終了するかどうか)
+	/**
+	 * AI 核心處理邏輯
+	 * <p>
+	 * 每個 AI 週期執行一次（預設 300ms），處理目標搜尋、移動、攻擊等行為。
+	 * </p>
+	 *
+	 * <h4>執行流程：</h4>
+	 * <ol>
+	 * <li>設定預設休眠時間（300ms）</li>
+	 * <li>檢查當前目標有效性 {@link #checkTarget()}</li>
+	 * <li>無目標且無主人時，搜尋新目標 {@link #searchTarget()}</li>
+	 * <li>變形怪變形判定 {@link #onDoppel(boolean)}</li>
+	 * <li>道具使用判定 {@link #onItemUse()}</li>
+	 * <li>根據目標情況執行動作：
+	 *     <ul>
+	 *     <li>有目標：執行攻擊或移動 {@link #onTarget()}</li>
+	 *     <li>無目標：搜尋物品或待機 {@link #noTarget()}</li>
+	 *     </ul>
+	 * </li>
+	 * </ol>
+	 *
+	 * @return true 結束 AI 循環，false 繼續 AI 循環
+	 */
 	private boolean AIProcess() {
 		setSleepTime(300);
 
 		checkTarget();
 		if ((_target == null) && (_master == null)) {
-			// 空っぽの場合はターゲットを探してみる
-			// （主人がいる場合は自分でターゲットを探さない）
+			// 無目標且無主人時，搜尋新目標
+			// （有主人的寵物/召喚獸不會自動搜尋目標）
 			searchTarget();
 		}
 
@@ -290,7 +443,7 @@ public class L1NpcInstance extends L1Character {
 		onItemUse();
 
 		if (_target == null) {
-			// ターゲットがいない場合
+			// 無目標時
 			checkTargetItem();
 			if (isPickupItem() && (_targetItem == null)) {
 				// アイテム拾う子の場合はアイテムを探してみる
@@ -323,23 +476,68 @@ public class L1NpcInstance extends L1Character {
 			}
 		}
 
-		return false; // ＡＩ処理続行
+		return false; // 繼續 AI 處理
 	}
 
-	// 變形怪變形
+	/**
+	 * 變形怪變形判定
+	 * <p>
+	 * 基類為空實現，由子類（如 L1MonsterInstance）覆寫實現變形邏輯。
+	 * 變形怪會複製目標玩家的外觀、名稱等資訊。
+	 * </p>
+	 *
+	 * @param isChangeShape true 變形，false 恢復原形
+	 * @see L1MonsterInstance#onDoppel(boolean)
+	 */
 	public void onDoppel(boolean isChangeShape) {
 	}
 
-	// アイテム使用処理（Ｔｙｐｅによって結構違うのでオーバライドで実装）
+	/**
+	 * 道具使用處理
+	 * <p>
+	 * 基類為空實現，由子類（如 L1MonsterInstance）覆寫實現道具使用邏輯。
+	 * 例如：HP 低時使用回復藥水，戰鬥時使用加速藥水。
+	 * </p>
+	 *
+	 * @see L1MonsterInstance#onItemUse()
+	 */
 	public void onItemUse() {
 	}
 
-	// ターゲットを探す（Ｔｙｐｅによって結構違うのでオーバライドで実装）
+	/**
+	 * 搜尋攻擊目標
+	 * <p>
+	 * 基類實現為清除目標，由子類（如 L1MonsterInstance）覆寫實現具體搜尋邏輯。
+	 * 子類實現通常包括：
+	 * </p>
+	 * <ul>
+	 * <li>獲取可見範圍內的玩家</li>
+	 * <li>根據主動性判定是否攻擊</li>
+	 * <li>檢查陣營友好關係</li>
+	 * <li>將目標加入仇恨列表</li>
+	 * </ul>
+	 *
+	 * @see L1MonsterInstance#searchTarget()
+	 */
 	public void searchTarget() {
 		tagertClear();
 	}
 
-	// 有効なターゲットか確認及び次のターゲットを設定
+	/**
+	 * 檢查當前目標有效性
+	 * <p>
+	 * 驗證目標是否仍然可以攻擊，無效則從仇恨列表選擇次高仇恨目標。
+	 * </p>
+	 *
+	 * <h4>判定條件：</h4>
+	 * <ul>
+	 * <li>目標為 null</li>
+	 * <li>目標在不同地圖</li>
+	 * <li>目標 HP ≤ 0 或已死亡</li>
+	 * <li>目標隱形（且 NPC 不具備反隱形能力）</li>
+	 * <li>目標距離超過 30 格</li>
+	 * </ul>
+	 */
 	public void checkTarget() {
 		if ((_target == null)
 				|| (_target.getMapId() != getMapId())
@@ -359,12 +557,27 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
-	// ヘイトの設定
+	/**
+	 * 設定對某個角色的仇恨值
+	 * <p>
+	 * 將角色加入仇恨列表並更新當前攻擊目標。首次攻擊的角色會獲得 FA 獎勵仇恨值。
+	 * </p>
+	 *
+	 * <h4>仇恨值來源：</h4>
+	 * <ul>
+	 * <li>物理/魔法傷害：造成的實際傷害值</li>
+	 * <li>治療隊友：治療量 × 0.5</li>
+	 * <li>Buff 隊友：固定值</li>
+	 * <li>首次攻擊 (FA)：額外獲得 MaxHP / 10 的獎勵仇恨值</li>
+	 * </ul>
+	 *
+	 * @param cha 目標角色
+	 * @param hate 仇恨值
+	 */
 	public void setHate(L1Character cha, int hate) {
 		if ((cha != null) && (cha.getId() != getId())) {
 			if (!isFirstAttack() && (hate != 0)) {
-				// hate += 20; // ＦＡヘイト
-				hate += getMaxHp() / 10; // ＦＡヘイト
+				hate += getMaxHp() / 10; // FA 獎勵仇恨值
 				setFirstAttack(true);
 			}
 
@@ -375,11 +588,34 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
-	// リンクの設定
+	/**
+	 * 設定連動目標
+	 * <p>
+	 * 基類為空實現，由子類（如 L1MonsterInstance）覆寫實現連動邏輯。
+	 * </p>
+	 *
+	 * @param cha 連動目標
+	 * @see L1MonsterInstance#setLink(L1Character)
+	 */
 	public void setLink(L1Character cha) {
 	}
 
-	// 仲間意識によりアクティブになるＮＰＣの検索（攻撃者がプレイヤーのみ有効）
+	/**
+	 * 搜尋並連動附近的同族 NPC
+	 * <p>
+	 * 當玩家攻擊 NPC 時，觸發此方法讓附近的 NPC 一起加入戰鬥。
+	 * </p>
+	 *
+	 * <h4>連動類型（由 agrofamily 欄位控制）：</h4>
+	 * <ul>
+	 * <li><b>0</b>：無連動</li>
+	 * <li><b>1</b>：同族連動（只有相同 family 的 NPC 會支援）</li>
+	 * <li><b>2</b>：全體連動（附近所有 NPC 都會加入戰鬥）</li>
+	 * </ul>
+	 *
+	 * @param targetPlayer 攻擊者（玩家）
+	 * @param family 族群編號
+	 */
 	public void serchLink(L1PcInstance targetPlayer, int family) {
 		List<L1Object> targetKnownObjects = targetPlayer.getKnownObjects();
 		for (Object knownObject : targetKnownObjects) {
@@ -408,13 +644,38 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
-	// ターゲットがいる場合の処理
+	/**
+	 * 對目標執行動作（移動或攻擊）
+	 * <p>
+	 * 根據 NPC 類型和目標距離決定行為：
+	 * </p>
+	 *
+	 * <h4>決策邏輯：</h4>
+	 * <ul>
+	 * <li><b>逃跑型 NPC</b>（AtkSpeed == 0）：計算遠離方向並移動</li>
+	 * <li><b>攻擊型 NPC</b>（AtkSpeed > 0）：
+	 *     <ul>
+	 *     <li>在攻擊範圍內：優先使用技能，否則物理攻擊</li>
+	 *     <li>不在範圍內：嘗試遠程技能 → 傳送接近 → 移動接近</li>
+	 *     </ul>
+	 * </li>
+	 * </ul>
+	 *
+	 * <h4>傳送機制：</h4>
+	 * <p>
+	 * 具備傳送能力的 NPC（is_teleport = true）在距離 6-15 格時，
+	 * 有 20% 機率傳送到目標附近 3 格內，消耗 10 MP。
+	 * </p>
+	 *
+	 * @see #attackTarget(L1Character)
+	 * @see #nearTeleport(int, int)
+	 */
 	public void onTarget() {
 		setActived(true);
 		_targetItemList.clear();
 		_targetItem = null;
-		L1Character target = _target; // ここから先は_targetが変わると影響出るので別領域に参照確保
-		if (getAtkspeed() == 0) { // 逃げるキャラ
+		L1Character target = _target; // 保存目標引用，避免在處理過程中被修改
+		if (getAtkspeed() == 0) { // 逃跑型 NPC
 			if (getPassispeed() > 0) { // 移動できるキャラ
 				int escapeDistance = 15;
 				if (hasSkillEffect(40) == true) {
@@ -488,11 +749,31 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
-	// 目標を指定のスキルで攻撃
+	/**
+	 * 對指定目標執行物理攻擊
+	 * <p>
+	 * 創建攻擊實例，計算命中和傷害，然後執行攻擊動作。
+	 * </p>
+	 *
+	 * <h4>執行流程：</h4>
+	 * <ol>
+	 * <li>驗證目標狀態（是否傳送中、隱藏狀態等）</li>
+	 * <li>創建 {@link L1Attack} 攻擊實例</li>
+	 * <li>計算命中判定 {@link L1Attack#calcHit()}</li>
+	 * <li>計算傷害數值 {@link L1Attack#calcDamage()}</li>
+	 * <li>檢查特殊效果（反擊屏障等）</li>
+	 * <li>執行攻擊動作 {@link L1Attack#action()}</li>
+	 * <li>提交傷害結果 {@link L1Attack#commit()}</li>
+	 * <li>設定下次攻擊時間</li>
+	 * </ol>
+	 *
+	 * @param target 攻擊目標
+	 * @see L1Attack
+	 */
 	public void attackTarget(L1Character target) {
 		if (target instanceof L1PcInstance) {
 			L1PcInstance player = (L1PcInstance) target;
-			if (player.isTeleport()) { // テレポート処理中
+			if (player.isTeleport()) { // 傳送處理中
 				return;
 			}
 		} else if (target instanceof L1PetInstance) {
@@ -568,7 +849,24 @@ public class L1NpcInstance extends L1Character {
 		setSleepTime(calcSleepTime(getAtkspeed(), ATTACK_SPEED));
 	}
 
-	// ターゲットアイテムを探す
+	/**
+	 * 搜尋目標物品
+	 * <p>
+	 * 在 NPC 視野範圍內搜尋地面上可撿拾的物品，並將符合條件的物品加入目標清單。
+	 * </p>
+	 *
+	 * <h4>搜尋邏輯：</h4>
+	 * <ol>
+	 * <li>獲取視野內所有地面物品容器 {@link L1GroundInventory}</li>
+	 * <li>隨機選擇一個物品容器</li>
+	 * <li>檢查物品是否可以放入 NPC 背包</li>
+	 * <li>將符合條件的物品加入 {@link #_targetItemList}</li>
+	 * </ol>
+	 *
+	 * @see #checkTargetItem()
+	 * @see #onTargetItem()
+	 * @see #pickupTargetItem(L1ItemInstance)
+	 */
 	public void searchTargetItem() {
 		List<L1GroundInventory> gInventorys = Lists.newList();
 
@@ -592,7 +890,24 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
-	public void searchItemFromAir() { // 怪物飛天中，發現特定道具時解除飛天撿拾道具
+	/**
+	 * 從空中搜尋特定物品（飛行狀態專用）
+	 * <p>
+	 * 當 NPC 處於飛行狀態時，若發現藥水或食物類物品，會解除飛行狀態並降落撿拾。
+	 * </p>
+	 *
+	 * <h4>功能特點：</h4>
+	 * <ul>
+	 * <li>僅搜尋藥水（type=6）和食物（type=7）類物品</li>
+	 * <li>發現目標物品後自動解除飛行狀態</li>
+	 * <li>播放降落動作（ACTION_Movedown）</li>
+	 * <li>重新啟動 AI 處理</li>
+	 * </ul>
+	 *
+	 * @see #searchTargetItem()
+	 * @see #HIDDEN_STATUS_FLY
+	 */
+	public void searchItemFromAir() {
 		List<L1GroundInventory> gInventorys = Lists.newList();
 
 		for (L1Object obj : L1World.getInstance().getVisibleObjects(this)) {
@@ -624,6 +939,14 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 隨機打亂陣列順序（Fisher-Yates 洗牌算法）
+	 * <p>
+	 * 使用 Fisher-Yates 算法對陣列進行隨機排序，確保每個元素出現在任意位置的機率相等。
+	 * </p>
+	 *
+	 * @param arr 要打亂的物件陣列
+	 */
 	public static void shuffle(L1Object[] arr) {
 		for (int i = arr.length - 1; i > 0; i--) {
 			int t = Random.nextInt(i);
@@ -635,7 +958,27 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
-	// 有効なターゲットアイテムか確認及び次のターゲットアイテムを設定
+	/**
+	 * 驗證目標物品有效性並設定下一個目標
+	 * <p>
+	 * 檢查當前目標物品是否仍然有效（存在、在同地圖、距離合理），
+	 * 若無效則從目標清單中取下一個物品作為新目標。
+	 * </p>
+	 *
+	 * <h4>無效條件：</h4>
+	 * <ul>
+	 * <li>目標物品為 null</li>
+	 * <li>目標物品不在同一地圖</li>
+	 * <li>目標物品距離超過 15 格</li>
+	 * </ul>
+	 *
+	 * <p>
+	 * 使用遞迴方式檢查，直到找到有效目標或清單為空。
+	 * </p>
+	 *
+	 * @see #searchTargetItem()
+	 * @see #onTargetItem()
+	 */
 	public void checkTargetItem() {
 		if ((_targetItem == null)
 				|| (_targetItem.getMapId() != getMapId())
@@ -650,7 +993,28 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
-	// ターゲットアイテムがある場合の処理
+	/**
+	 * 處理目標物品相關行為
+	 * <p>
+	 * 當 NPC 有目標物品時，執行移動到物品位置並撿拾的邏輯。
+	 * </p>
+	 *
+	 * <h4>處理邏輯：</h4>
+	 * <ul>
+	 * <li><b>距離為 0</b>：在可撿拾位置，直接撿拾物品</li>
+	 * <li><b>距離大於 0</b>：
+	 *   <ul>
+	 *   <li>計算移動方向 {@link #moveDirection(int, int)}</li>
+	 *   <li>若無法移動（dir=-1），放棄該物品</li>
+	 *   <li>若可移動，向目標物品方向移動一步</li>
+	 *   </ul>
+	 * </li>
+	 * </ul>
+	 *
+	 * @see #pickupTargetItem(L1ItemInstance)
+	 * @see #moveDirection(int, int)
+	 * @see #setDirectionMove(int)
+	 */
 	public void onTargetItem() {
 		if (getLocation().getTileLineDistance(_targetItem.getLocation()) == 0) { // ピックアップ可能位置
 			pickupTargetItem(_targetItem);
@@ -666,7 +1030,26 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
-	// アイテムを拾う
+	/**
+	 * 撿拾目標物品
+	 * <p>
+	 * 將地面上的物品轉移到 NPC 的背包中，並觸發相關事件。
+	 * </p>
+	 *
+	 * <h4>執行步驟：</h4>
+	 * <ol>
+	 * <li>獲取物品所在地面容器 {@link L1World#getInventory(int, int, short)}</li>
+	 * <li>執行物品轉移 {@link L1Inventory#tradeItem(L1ItemInstance, long, L1Inventory)}</li>
+	 * <li>更新燈光狀態 {@link #turnOnOffLight()}</li>
+	 * <li>觸發物品獲得事件 {@link #onGetItem(L1ItemInstance)}</li>
+	 * <li>從目標清單移除該物品</li>
+	 * <li>設定休息時間為 1 秒</li>
+	 * </ol>
+	 *
+	 * @param targetItem 要撿拾的物品
+	 * @see #onTargetItem()
+	 * @see #onGetItem(L1ItemInstance)
+	 */
 	public void pickupTargetItem(L1ItemInstance targetItem) {
 		L1Inventory groundInventory = L1World.getInstance().getInventory(
 				targetItem.getX(), targetItem.getY(), targetItem.getMapId());
@@ -679,7 +1062,35 @@ public class L1NpcInstance extends L1Character {
 		setSleepTime(1000);
 	}
 
-	// ターゲットがいない場合の処理 (返り値はＡＩ処理を終了するかどうか)
+	/**
+	 * 處理無目標狀態下的行為
+	 * <p>
+	 * 當 NPC 沒有攻擊目標時，根據不同情況執行對應的行為邏輯。
+	 * </p>
+	 *
+	 * <h4>行為決策樹：</h4>
+	 * <ul>
+	 * <li><b>有主人且距離超過 2 格</b>：追隨主人</li>
+	 * <li><b>周圍無玩家</b>：返回 true，終止 AI 處理</li>
+	 * <li><b>可移動的自由 NPC</b>：
+	 *   <ul>
+	 *   <li>若為群組領導者或非群組成員：隨機移動（有機率向家點方向移動）</li>
+	 *   <li>若為群組成員：追隨群組領導者</li>
+	 *   </ul>
+	 * </li>
+	 * </ul>
+	 *
+	 * <h4>隨機移動機制：</h4>
+	 * <ol>
+	 * <li>隨機決定移動距離（1-5 格）和方向</li>
+	 * <li>有 1/3 機率調整為朝向家點方向</li>
+	 * <li>每步遞減剩餘移動距離</li>
+	 * </ol>
+	 *
+	 * @return true：終止 AI 處理；false：繼續 AI 處理
+	 * @see #moveDirection(int, int)
+	 * @see #setDirectionMove(int)
+	 */
 	public boolean noTarget() {
 		if ((_master != null)
 				&& (_master.getMapId() == getMapId())
@@ -741,10 +1152,27 @@ public class L1NpcInstance extends L1Character {
 		return false;
 	}
 
+	/**
+	 * NPC 最終動作處理（由子類別覆寫）
+	 * <p>
+	 * 當 NPC 與玩家互動結束後的最終處理。基礎實作為空，由子類別覆寫實現特定邏輯。
+	 * </p>
+	 *
+	 * @param pc 互動的玩家
+	 * @param s 動作指令字串
+	 */
 	public void onFinalAction(L1PcInstance pc, String s) {
 	}
 
-	// 現在のターゲットを削除
+	/**
+	 * 清除當前目標
+	 * <p>
+	 * 將當前鎖定的目標從仇恨列表中移除，並清空目標參考。
+	 * </p>
+	 *
+	 * @see #targetRemove(L1Character)
+	 * @see #allTargetClear()
+	 */
 	public void tagertClear() {
 		if (_target == null) {
 			return;
@@ -753,7 +1181,16 @@ public class L1NpcInstance extends L1Character {
 		_target = null;
 	}
 
-	// 指定されたターゲットを削除
+	/**
+	 * 移除指定目標
+	 * <p>
+	 * 從仇恨列表中移除指定的角色，若該角色為當前目標則同時清空目標參考。
+	 * </p>
+	 *
+	 * @param target 要移除的目標角色
+	 * @see #tagertClear()
+	 * @see #allTargetClear()
+	 */
 	public void targetRemove(L1Character target) {
 		_hateList.remove(target);
 		if ((_target != null) && _target.equals(target)) {
@@ -761,7 +1198,25 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
-	// 全てのターゲットを削除
+	/**
+	 * 清除所有目標
+	 * <p>
+	 * 清空所有仇恨列表、目標物品列表，並重置當前目標。
+	 * 用於重置 NPC 的攻擊狀態。
+	 * </p>
+	 *
+	 * <h4>清除內容：</h4>
+	 * <ul>
+	 * <li>仇恨列表 {@link #_hateList}</li>
+	 * <li>掉落仇恨列表 {@link #_dropHateList}</li>
+	 * <li>當前攻擊目標 {@link #_target}</li>
+	 * <li>目標物品列表 {@link #_targetItemList}</li>
+	 * <li>當前目標物品 {@link #_targetItem}</li>
+	 * </ul>
+	 *
+	 * @see #tagertClear()
+	 * @see #targetRemove(L1Character)
+	 */
 	public void allTargetClear() {
 		_hateList.clear();
 		_dropHateList.clear();
@@ -770,21 +1225,79 @@ public class L1NpcInstance extends L1Character {
 		_targetItem = null;
 	}
 
-	// マスターの設定
+	/**
+	 * 設定主人
+	 * <p>
+	 * 設定此 NPC 的主人（召喚者或擁有者）。主要用於寵物、召喚獸等從屬型 NPC。
+	 * </p>
+	 *
+	 * @param cha 主人角色
+	 * @see #getMaster()
+	 */
 	public void setMaster(L1Character cha) {
 		_master = cha;
 	}
 
-	// マスターの取得
+	/**
+	 * 取得主人
+	 * <p>
+	 * 返回此 NPC 的主人（召喚者或擁有者）。
+	 * </p>
+	 *
+	 * @return 主人角色，若無主人則返回 null
+	 * @see #setMaster(L1Character)
+	 */
 	public L1Character getMaster() {
 		return _master;
 	}
 
-	// ＡＩトリガ
+	/**
+	 * NPC AI 觸發器（由子類別覆寫）
+	 * <p>
+	 * 當 NPC 的 AI 被觸發時調用。基礎實作為空，由子類別覆寫實現特定的 AI 行為。
+	 * </p>
+	 *
+	 * <h4>觸發時機：</h4>
+	 * <ul>
+	 * <li>NPC 感知到玩家時</li>
+	 * <li>NPC 受到攻擊時</li>
+	 * <li>NPC 狀態改變時（如從飛行降落）</li>
+	 * </ul>
+	 *
+	 * @see #startAI()
+	 * @see #AIProcess()
+	 */
 	public void onNpcAI() {
 	}
 
-	// アイテム精製
+	/**
+	 * 物品精製
+	 * <p>
+	 * 特定 NPC（如布羅布）使用背包內的材料自動精製成目標物品。
+	 * 用於實現 NPC 的物品製作功能。
+	 * </p>
+	 *
+	 * <h4>精製邏輯：</h4>
+	 * <ol>
+	 * <li>檢查 NPC 是否擁有經驗值（表示可精製）</li>
+	 * <li>檢查是否已持有目標成品（避免重複製作）</li>
+	 * <li>驗證背包內是否有足夠的材料</li>
+	 * <li>消耗材料並創建成品</li>
+	 * </ol>
+	 *
+	 * <h4>支援的精製配方：</h4>
+	 * <ul>
+	 * <li>奧里哈鋼劍刀身（需要奧里哈鋼、秘銀、鑽石）</li>
+	 * <li>長劍刀身（需要秘銀、鑽石）</li>
+	 * <li>短劍刀身（需要秘銀、鑽石）</li>
+	 * <li>奧里哈鋼號角（需要號角、奧里哈鋼、鑽石）</li>
+	 * <li>秘銀號角（需要號角、秘銀）</li>
+	 * </ul>
+	 *
+	 * @see L1Inventory#checkItem(int[], int[])
+	 * @see L1Inventory#consumeItem(int, int)
+	 * @see L1Inventory#storeItem(int, int)
+	 */
 	public void refineItem() {
 
 		int[] materials = null;
@@ -938,19 +1451,64 @@ public class L1NpcInstance extends L1Character {
 
 	private int _paralysisTime = 0; // Paralysis RestTime
 
+	/**
+	 * 設定麻痺時間
+	 * <p>
+	 * 設定 NPC 的麻痺休息時間（毫秒）。麻痺期間 NPC 無法行動。
+	 * </p>
+	 *
+	 * @param ptime 麻痺時間（毫秒）
+	 * @see #getParalysisTime()
+	 */
 	public void setParalysisTime(int ptime) {
 		_paralysisTime = ptime;
 	}
 
+	/**
+	 * 取得仇恨列表
+	 * <p>
+	 * 返回此 NPC 的仇恨列表，用於追蹤所有攻擊目標及其仇恨值。
+	 * </p>
+	 *
+	 * @return 仇恨列表
+	 * @see L1HateList
+	 * @see #setHate(L1Character, int)
+	 */
 	public L1HateList getHateList() {
 		return _hateList;
 	}
 
+	/**
+	 * 取得麻痺時間
+	 * <p>
+	 * 返回 NPC 剩餘的麻痺休息時間（毫秒）。
+	 * </p>
+	 *
+	 * @return 麻痺時間（毫秒）
+	 * @see #setParalysisTime(int)
+	 */
 	public int getParalysisTime() {
 		return _paralysisTime;
 	}
 
-	// HP自然回復
+	/**
+	 * 啟動 HP 自然回復
+	 * <p>
+	 * 根據 NPC 模板設定的回復間隔和回復量，啟動定時 HP 回復任務。
+	 * </p>
+	 *
+	 * <h4>啟動條件：</h4>
+	 * <ul>
+	 * <li>回復任務未運行中</li>
+	 * <li>回復間隔大於 0</li>
+	 * <li>回復量大於 0</li>
+	 * </ul>
+	 *
+	 * @see #stopHpRegeneration()
+	 * @see L1NpcRegenerationTimer
+	 * @see L1Npc#get_hprinterval()
+	 * @see L1Npc#get_hpr()
+	 */
 	public final void startHpRegeneration() {
 		int hprInterval = getNpcTemplate().get_hprinterval();
 		int hpr = getNpcTemplate().get_hpr();
@@ -962,6 +1520,14 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 停止 HP 自然回復
+	 * <p>
+	 * 取消 HP 回復定時任務，停止自然回復。
+	 * </p>
+	 *
+	 * @see #startHpRegeneration()
+	 */
 	public final void stopHpRegeneration() {
 		if (_hprRunning) {
 			_hprTimer.cancel();
@@ -969,7 +1535,24 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
-	// MP自然回復
+	/**
+	 * 啟動 MP 自然回復
+	 * <p>
+	 * 根據 NPC 模板設定的回復間隔和回復量，啟動定時 MP 回復任務。
+	 * </p>
+	 *
+	 * <h4>啟動條件：</h4>
+	 * <ul>
+	 * <li>回復任務未運行中</li>
+	 * <li>回復間隔大於 0</li>
+	 * <li>回復量大於 0</li>
+	 * </ul>
+	 *
+	 * @see #stopMpRegeneration()
+	 * @see L1NpcRegenerationTimer
+	 * @see L1Npc#get_mprinterval()
+	 * @see L1Npc#get_mpr()
+	 */
 	public final void startMpRegeneration() {
 		int mprInterval = getNpcTemplate().get_mprinterval();
 		int mpr = getNpcTemplate().get_mpr();
@@ -981,6 +1564,14 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 停止 MP 自然回復
+	 * <p>
+	 * 取消 MP 回復定時任務，停止自然回復。
+	 * </p>
+	 *
+	 * @see #startMpRegeneration()
+	 */
 	public final void stopMpRegeneration() {
 		if (_mprRunning) {
 			_mprTimer.cancel();
@@ -1225,7 +1816,17 @@ public class L1NpcInstance extends L1Character {
 		mobSkill = new L1MobSkillUse(this);
 	}
 
-	// 延遲時間
+	/**
+	 * 設定 NPC 行動延遲時間
+	 * <p>
+	 * 根據動作編號和類型（移動/攻擊/施法），從精靈表中查詢動作速度並計算延遲時間。
+	 * </p>
+	 *
+	 * @param i 動作編號（來自精靈表）
+	 * @param type 速度類型（{@link #MOVE_SPEED}、{@link #ATTACK_SPEED}、{@link #MAGIC_SPEED}）
+	 * @see #calcSleepTime(int, int)
+	 * @see SprTable#getSprSpeed(int, int)
+	 */
 	public void npcSleepTime(int i, int type) {
 		setSleepTime(calcSleepTime(SprTable.getInstance()
 				.getSprSpeed(getTempCharGfx(), i), type));
@@ -1233,77 +1834,157 @@ public class L1NpcInstance extends L1Character {
 
 	private int _passispeed;
 
+	/**
+	 * 取得移動速度
+	 * @return 移動速度值（來自精靈表）
+	 */
 	public int getPassispeed() {
 		return _passispeed;
 	}
 
+	/**
+	 * 設定移動速度
+	 * @param i 移動速度值
+	 */
 	public void setPassispeed(int i) {
 		_passispeed = i;
 	}
 
 	private int _atkspeed;
 
+	/**
+	 * 取得攻擊速度
+	 * @return 攻擊速度值（來自精靈表）
+	 */
 	public int getAtkspeed() {
 		return _atkspeed;
 	}
 
+	/**
+	 * 設定攻擊速度
+	 * @param i 攻擊速度值
+	 */
 	public void setAtkspeed(int i) {
 		_atkspeed = i;
 	}
 
 	private boolean _pickupItem;
 
+	/**
+	 * 檢查 NPC 是否會撿拾物品
+	 * @return true：會撿拾；false：不會撿拾
+	 */
 	public boolean isPickupItem() {
 		return _pickupItem;
 	}
 
+	/**
+	 * 設定 NPC 是否撿拾物品
+	 * @param flag true：會撿拾；false：不會撿拾
+	 */
 	public void setPickupItem(boolean flag) {
 		_pickupItem = flag;
 	}
 
+	/**
+	 * 取得 NPC 背包
+	 * @return NPC 的物品容器
+	 */
 	@Override
 	public L1Inventory getInventory() {
 		return _inventory;
 	}
 
+	/**
+	 * 設定 NPC 背包
+	 * @param inventory 物品容器
+	 */
 	public void setInventory(L1Inventory inventory) {
 		_inventory = inventory;
 	}
 
+	/**
+	 * 取得 NPC 模板數據
+	 * @return NPC 模板對象（包含基礎屬性）
+	 * @see L1Npc
+	 */
 	public L1Npc getNpcTemplate() {
 		return _npcTemplate;
 	}
 
+	/**
+	 * 取得 NPC ID
+	 * @return NPC 的唯一識別碼
+	 */
 	public int getNpcId() {
 		return _npcTemplate.get_npcId();
 	}
 
+	/**
+	 * 設定寵物維護費用
+	 * @param i 維護費用
+	 */
 	public void setPetcost(int i) {
 		_petcost = i;
 	}
 
+	/**
+	 * 取得寵物維護費用
+	 * @return 維護費用
+	 */
 	public int getPetcost() {
 		return _petcost;
 	}
 
+	/**
+	 * 設定生成點
+	 * @param spawn 生成點管理器
+	 * @see L1Spawn
+	 */
 	public void setSpawn(L1Spawn spawn) {
 		_spawn = spawn;
 	}
 
+	/**
+	 * 取得生成點
+	 * @return 生成點管理器
+	 * @see L1Spawn
+	 */
 	public L1Spawn getSpawn() {
 		return _spawn;
 	}
 
+	/**
+	 * 設定生成編號
+	 * @param number 編號
+	 */
 	public void setSpawnNumber(int number) {
 		_spawnNumber = number;
 	}
 
+	/**
+	 * 取得生成編號
+	 * @return 編號
+	 */
 	public int getSpawnNumber() {
 		return _spawnNumber;
 	}
 
-	// オブジェクトIDをSpawnTaskに渡し再利用する
-	// グループモンスターは複雑になるので再利用しない
+	/**
+	 * NPC 消失處理
+	 * <p>
+	 * NPC 死亡後消失，並觸發重生機制。可選擇是否重用物件 ID。
+	 * </p>
+	 *
+	 * <h4>注意事項：</h4>
+	 * <ul>
+	 * <li>群組怪物不重用 ID（避免複雜度）</li>
+	 * <li>重生由 {@link L1Spawn} 的 SpawnTask 處理</li>
+	 * </ul>
+	 *
+	 * @param isReuseId 是否重用物件 ID（true：重用；false：分配新 ID）
+	 * @see L1Spawn#executeSpawnTask(int, int)
+	 */
 	public void onDecay(boolean isReuseId) {
 		int id = 0;
 		if (isReuseId) {
@@ -1314,6 +1995,17 @@ public class L1NpcInstance extends L1Character {
 		_spawn.executeSpawnTask(_spawnNumber, id);
 	}
 
+	/**
+	 * 玩家感知 NPC 時的處理
+	 * <p>
+	 * 當玩家進入視野範圍，將 NPC 加入玩家的已知物件列表，
+	 * 發送 NPC 封包給玩家，並觸發 NPC AI。
+	 * </p>
+	 *
+	 * @param perceivedFrom 感知到此 NPC 的玩家
+	 * @see S_NPCPack
+	 * @see #onNpcAI()
+	 */
 	@Override
 	public void onPerceive(L1PcInstance perceivedFrom) {
 		perceivedFrom.addKnownObject(this);
@@ -1321,6 +2013,32 @@ public class L1NpcInstance extends L1Character {
 		onNpcAI();
 	}
 
+	/**
+	 * 刪除 NPC
+	 * <p>
+	 * 完全移除 NPC，清除所有資源、目標、背包，並從世界中移除。
+	 * 根據重生設定決定是否觸發重生機制。
+	 * </p>
+	 *
+	 * <h4>清除內容：</h4>
+	 * <ul>
+	 * <li>設定為已銷毀狀態</li>
+	 * <li>清空背包物品</li>
+	 * <li>清除所有目標</li>
+	 * <li>清除主人參考</li>
+	 * <li>從世界視野物件列表移除</li>
+	 * <li>發送移除封包給所有認知的玩家</li>
+	 * </ul>
+	 *
+	 * <h4>重生邏輯：</h4>
+	 * <ul>
+	 * <li>非群組怪物：重用物件 ID 重生</li>
+	 * <li>群組怪物：全滅後不重用 ID 重生</li>
+	 * </ul>
+	 *
+	 * @see #onDecay(boolean)
+	 * @see #allTargetClear()
+	 */
 	public void deleteMe() {
 		_destroyed = true;
 		if (getInventory() != null) {
@@ -1360,12 +2078,40 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 接收魔力傷害（由子類別覆寫）
+	 * <p>
+	 * 當 NPC 受到魔力傷害時調用。基礎實作為空，由子類別覆寫實現特定處理。
+	 * </p>
+	 *
+	 * @param attacker 攻擊者
+	 * @param damageMp 魔力傷害值
+	 */
 	public void ReceiveManaDamage(L1Character attacker, int damageMp) {
 	}
 
+	/**
+	 * 接收傷害（由子類別覆寫）
+	 * <p>
+	 * 當 NPC 受到傷害時調用。基礎實作為空，由子類別覆寫實現特定處理。
+	 * </p>
+	 *
+	 * @param attacker 攻擊者
+	 * @param damage 傷害值
+	 */
 	public void receiveDamage(L1Character attacker, int damage) {
 	}
 
+	/**
+	 * 設定待消化物品
+	 * <p>
+	 * 將物品加入消化佇列，並啟動消化定時器。用於實現 NPC 吞噬物品的功能。
+	 * </p>
+	 *
+	 * @param item 要消化的物品
+	 * @see #onGetItem(L1ItemInstance)
+	 * @see L1Npc#get_digestitem()
+	 */
 	public void setDigestItem(L1ItemInstance item) {
 		_digestItems.put(new Integer(item.getId()), new Integer(
 				getNpcTemplate().get_digestitem()));
@@ -1375,6 +2121,24 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 獲得物品時的處理
+	 * <p>
+	 * 當 NPC 撿拾物品時觸發，執行物品精製、洗牌背包、設定消化等操作。
+	 * </p>
+	 *
+	 * <h4>執行步驟：</h4>
+	 * <ol>
+	 * <li>嘗試精製物品 {@link #refineItem()}</li>
+	 * <li>隨機打亂背包物品順序</li>
+	 * <li>若 NPC 可消化物品，加入消化佇列</li>
+	 * </ol>
+	 *
+	 * @param item 獲得的物品
+	 * @see #pickupTargetItem(L1ItemInstance)
+	 * @see #refineItem()
+	 * @see #setDigestItem(L1ItemInstance)
+	 */
 	public void onGetItem(L1ItemInstance item) {
 		refineItem();
 		getInventory().shuffle();
@@ -1383,6 +2147,32 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 玩家接近 NPC 時的處理
+	 * <p>
+	 * 當玩家接近隱藏狀態的 NPC 時，根據 NPC 的隱藏狀態觸發不同的反應。
+	 * </p>
+	 *
+	 * <h4>隱藏狀態反應：</h4>
+	 * <ul>
+	 * <li><b>遁地狀態（SINK）</b>：滿血時，玩家距離 ≤ 2 格，從地面出現</li>
+	 * <li><b>飛行狀態（FLY）</b>：
+	 *   <ul>
+	 *   <li>滿血時，玩家距離 ≤ 1 格，降落地面</li>
+	 *   <li>非滿血時，搜尋地面上的藥水和食物</li>
+	 *   </ul>
+	 * </li>
+	 * <li><b>冰凍狀態（ICE）</b>：非滿血時，從冰凍狀態解凍</li>
+	 * </ul>
+	 *
+	 * <p>
+	 * 玩家處於隱形或盲目潛行狀態時不觸發。
+	 * </p>
+	 *
+	 * @param pc 接近的玩家
+	 * @see #appearOnGround(L1PcInstance)
+	 * @see #searchItemFromAir()
+	 */
 	public void approachPlayer(L1PcInstance pc) {
 		if (pc.hasSkillEffect(60) || pc.hasSkillEffect(97)) { // インビジビリティ、ブラインドハイディング中
 			return;
@@ -1410,7 +2200,28 @@ public class L1NpcInstance extends L1Character {
 		}
 	}
 
-	public void appearOnGround(L1PcInstance pc) { // 怪物解除遁地、飛天、冰凍
+	/**
+	 * 從隱藏狀態出現到地面
+	 * <p>
+	 * 解除 NPC 的遁地、飛行或冰凍狀態，並在地面顯現。播放相應的出現動畫。
+	 * </p>
+	 *
+	 * <h4>處理邏輯：</h4>
+	 * <ul>
+	 * <li><b>遁地狀態</b>：播放 ACTION_Appear 動畫，更新視覺狀態，將玩家加入仇恨列表</li>
+	 * <li><b>飛行狀態</b>：播放 ACTION_Movedown 動畫，更新視覺狀態，將玩家加入仇恨列表</li>
+	 * <li><b>冰凍狀態</b>：播放 ACTION_IceArrow 動畫，更新視覺狀態</li>
+	 * </ul>
+	 *
+	 * <p>
+	 * 玩家處於隱形、盲目潛行狀態或 GM 模式時不會被加入仇恨列表。
+	 * </p>
+	 *
+	 * @param pc 觸發出現的玩家
+	 * @see #approachPlayer(L1PcInstance)
+	 * @see #setHate(L1Character, int)
+	 */
+	public void appearOnGround(L1PcInstance pc) {
 		if (getHiddenStatus() == HIDDEN_STATUS_SINK) {
 			setHiddenStatus(HIDDEN_STATUS_NONE);
 			setStatus(L1NpcDefaultAction.getInstance().getStatus(getTempCharGfx()));

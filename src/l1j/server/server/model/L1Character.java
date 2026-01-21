@@ -53,24 +53,76 @@ import l1j.server.server.utils.collections.Maps;
 // L1Object, Die, L1PcInstance, L1MonsterInstance,
 // L1World, ActionFailed
 
+/**
+ * 角色類別
+ * <p>
+ * 這是遊戲中所有角色（玩家、NPC、怪物等）的基礎抽象類別。
+ * 定義了所有角色共通的屬性和行為，包括生命值、魔力值、狀態效果、移動、戰鬥等核心功能。
+ * </p>
+ *
+ * <h3>主要功能：</h3>
+ * <ul>
+ * <li><b>屬性管理</b>：HP、MP、力量、敏捷、體質、智力、智慧、魅力</li>
+ * <li><b>狀態管理</b>：麻痺、睡眠、中毒、技能效果</li>
+ * <li><b>移動系統</b>：位置、方向、移動速度</li>
+ * <li><b>戰鬥系統</b>：攻擊力、防禦力、命中、迴避、魔防</li>
+ * <li><b>視野管理</b>：視野範圍內物件偵測、封包廣播</li>
+ * <li><b>寵物/召喚獸管理</b>：寵物列表、魔法娃娃、跟隨者</li>
+ * <li><b>技能效果管理</b>：技能定時器、Buff/Debuff 效果</li>
+ * <li><b>物品延遲</b>：物品使用冷卻時間管理</li>
+ * </ul>
+ *
+ * <h3>繼承關係：</h3>
+ * <pre>
+ * L1Object
+ *   └── L1Character
+ *         ├── L1PcInstance（玩家）
+ *         └── L1NpcInstance（NPC）
+ *               ├── L1MonsterInstance（怪物）
+ *               ├── L1PetInstance（寵物）
+ *               ├── L1SummonInstance（召喚獸）
+ *               └── ...（其他 NPC 類型）
+ * </pre>
+ *
+ * <h3>核心概念：</h3>
+ * <ul>
+ * <li><b>可見性</b>：角色的視野範圍內可以偵測到其他角色和物件</li>
+ * <li><b>狀態效果</b>：技能、物品、環境造成的各種 Buff/Debuff</li>
+ * <li><b>封包廣播</b>：向視野範圍內的玩家發送狀態更新</li>
+ * <li><b>資源管理</b>：HP/MP 的消耗與回復</li>
+ * </ul>
+ *
+ * @see L1Object
+ * @see L1PcInstance
+ * @see L1NpcInstance
+ * @see L1World
+ */
 public class L1Character extends L1Object {
 
 	private static final long serialVersionUID = 1L;
 
+	/** 中毒狀態物件，管理角色的中毒效果 */
 	private L1Poison _poison = null;
 
+	/** 麻痺狀態標記 */
 	private boolean _paralyzed;
 
+	/** 睡眠狀態標記 */
 	private boolean _sleeped;
 
+	/** 寵物列表，Key: 寵物物件 ID，Value: 寵物實例 */
 	private final Map<Integer, L1NpcInstance> _petlist = Maps.newMap();
 
+	/** 魔法娃娃列表，Key: 娃娃物件 ID，Value: 娃娃實例 */
 	private final Map<Integer, L1DollInstance> _dolllist = Maps.newMap();
 
+	/** 技能效果列表，Key: 技能 ID，Value: 技能定時器 */
 	private final Map<Integer, L1SkillTimer> _skillEffect = Maps.newMap();
 
+	/** 物品使用延遲列表，Key: 延遲類型 ID，Value: 延遲定時器 */
 	private final Map<Integer, L1ItemDelay.ItemDelayTimer> _itemdelay = Maps.newMap();
 
+	/** 跟隨者列表，Key: 跟隨者物件 ID，Value: 跟隨者實例 */
 	private final Map<Integer, L1FollowerInstance> _followerlist = Maps.newMap();
 
 	public L1Character() {
@@ -78,10 +130,25 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * キャラクターを復活させる。
-	 * 
-	 * @param hp
-	 *            復活後のHP
+	 * 復活角色
+	 * <p>
+	 * 將死亡的角色復活，恢復指定的 HP 並重置狀態。
+	 * </p>
+	 *
+	 * <h4>復活處理：</h4>
+	 * <ol>
+	 * <li>檢查角色是否已死亡，若未死亡則不執行</li>
+	 * <li>設定復活後的 HP（最小為 1）</li>
+	 * <li>設定為非死亡狀態</li>
+	 * <li>重置狀態為 0</li>
+	 * <li>解除變身狀態</li>
+	 * <li>向視野內玩家發送移除和更新封包</li>
+	 * </ol>
+	 *
+	 * @param hp 復活後的 HP 值（若 ≤ 0 則設為 1）
+	 * @see #isDead()
+	 * @see #setDead(boolean)
+	 * @see L1PolyMorph#undoPoly(L1Character)
 	 */
 	public void resurrect(int hp) {
 		if (!isDead()) {
@@ -101,24 +168,29 @@ public class L1Character extends L1Object {
 		}
 	}
 
+	/** 當前生命值 */
 	private int _currentHp;
 
 	/**
-	 * キャラクターの現在のHPを返す。
-	 * 
-	 * @return 現在のHP
+	 * 取得角色當前 HP
+	 * @return 當前 HP 值
+	 * @see #setCurrentHp(int)
 	 */
 	public int getCurrentHp() {
 		return _currentHp;
 	}
 
 	/**
-	 * キャラクターのHPを設定する。
-	 * 
-	 * @param i
-	 *            キャラクターの新しいHP
+	 * 設定角色 HP
+	 * <p>
+	 * 設定角色的當前 HP，會自動限制在最大 HP 範圍內。
+	 * 子類別可覆寫此方法以實現特殊處理（如發送封包更新）。
+	 * </p>
+	 *
+	 * @param i 新的 HP 值
+	 * @see #getCurrentHp()
+	 * @see #getMaxHp()
 	 */
-	// 特殊な処理がある場合はこっちをオーバライド（パケット送信等）
 	public void setCurrentHp(int i) {
 		_currentHp = i;
 		if (_currentHp >= getMaxHp()) {
@@ -127,33 +199,42 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * キャラクターのHPを設定する。
-	 * 
-	 * @param i
-	 *            キャラクターの新しいHP
+	 * 直接設定角色 HP（不進行上限檢查）
+	 * <p>
+	 * 直接設定 HP 值，不進行任何驗證或上限檢查。
+	 * 用於初始化或特殊情況。
+	 * </p>
+	 *
+	 * @param i 新的 HP 值
+	 * @see #setCurrentHp(int)
 	 */
 	public void setCurrentHpDirect(int i) {
 		_currentHp = i;
 	}
 
+	/** 當前魔力值 */
 	private int _currentMp;
 
 	/**
-	 * キャラクターの現在のMPを返す。
-	 * 
-	 * @return 現在のMP
+	 * 取得角色當前 MP
+	 * @return 當前 MP 值
+	 * @see #setCurrentMp(int)
 	 */
 	public int getCurrentMp() {
 		return _currentMp;
 	}
 
 	/**
-	 * キャラクターのMPを設定する。
-	 * 
-	 * @param i
-	 *            キャラクターの新しいMP
+	 * 設定角色 MP
+	 * <p>
+	 * 設定角色的當前 MP，會自動限制在最大 MP 範圍內。
+	 * 子類別可覆寫此方法以實現特殊處理（如發送封包更新）。
+	 * </p>
+	 *
+	 * @param i 新的 MP 值
+	 * @see #getCurrentMp()
+	 * @see #getMaxMp()
 	 */
-	// 特殊な処理がある場合はこっちをオーバライド（パケット送信等）
 	public void setCurrentMp(int i) {
 		_currentMp = i;
 		if (_currentMp >= getMaxMp()) {
@@ -162,63 +243,83 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * キャラクターのMPを設定する。
-	 * 
-	 * @param i
-	 *            キャラクターの新しいMP
+	 * 直接設定角色 MP（不進行上限檢查）
+	 * <p>
+	 * 直接設定 MP 值，不進行任何驗證或上限檢查。
+	 * 用於初始化或特殊情況。
+	 * </p>
+	 *
+	 * @param i 新的 MP 值
+	 * @see #setCurrentMp(int)
 	 */
 	public void setCurrentMpDirect(int i) {
 		_currentMp = i;
 	}
 
 	/**
-	 * キャラクターの眠り状態を返す。
-	 * 
-	 * @return 眠り状態を表す値。眠り状態であればtrue。
+	 * 檢查角色是否處於睡眠狀態
+	 * @return true：睡眠中；false：清醒
+	 * @see #setSleeped(boolean)
 	 */
 	public boolean isSleeped() {
 		return _sleeped;
 	}
 
 	/**
-	 * キャラクターの眠り状態を設定する。
-	 * 
-	 * @param sleeped
-	 *            眠り状態を表す値。眠り状態であればtrue。
+	 * 設定角色睡眠狀態
+	 * @param sleeped true：睡眠；false：清醒
+	 * @see #isSleeped()
 	 */
 	public void setSleeped(boolean sleeped) {
 		_sleeped = sleeped;
 	}
 
 	/**
-	 * キャラクターの麻痺状態を返す。
-	 * 
-	 * @return 麻痺状態を表す値。麻痺状態であればtrue。
+	 * 檢查角色是否處於麻痺狀態
+	 * @return true：麻痺中；false：正常
+	 * @see #setParalyzed(boolean)
 	 */
 	public boolean isParalyzed() {
 		return _paralyzed;
 	}
 
 	/**
-	 * キャラクターの麻痺状態を設定する。
-	 * 
-	 * @param i
-	 *            麻痺状態を表す値。麻痺状態であればtrue。
+	 * 設定角色麻痺狀態
+	 * @param paralyzed true：麻痺；false：正常
+	 * @see #isParalyzed()
 	 */
 	public void setParalyzed(boolean paralyzed) {
 		_paralyzed = paralyzed;
 	}
 
+	/** 麻痺狀態物件 */
 	L1Paralysis _paralysis;
 
+	/**
+	 * 取得麻痺狀態物件
+	 * @return 麻痺狀態物件
+	 * @see L1Paralysis
+	 */
 	public L1Paralysis getParalysis() {
 		return _paralysis;
 	}
 
+	/**
+	 * 設定麻痺狀態物件
+	 * @param p 麻痺狀態物件
+	 * @see L1Paralysis
+	 */
 	public void setParalaysis(L1Paralysis p) {
 		_paralysis = p;
 	}
 
+	/**
+	 * 治癒麻痺狀態
+	 * <p>
+	 * 若角色有麻痺狀態物件，則調用其治癒方法移除麻痺效果。
+	 * </p>
+	 * @see L1Paralysis#cure()
+	 */
 	public void cureParalaysis() {
 		if (_paralysis != null) {
 			_paralysis.cure();
@@ -226,10 +327,15 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * キャラクターの可視範囲に居るプレイヤーへ、パケットを送信する。
-	 * 
-	 * @param packet
-	 *            送信するパケットを表すServerBasePacketオブジェクト。
+	 * 向可視範圍內的玩家廣播封包
+	 * <p>
+	 * 向角色視野範圍內的所有玩家發送封包。
+	 * 會檢查旅館權限，只有持有相同旅館鑰匙的玩家才能收到封包。
+	 * </p>
+	 *
+	 * @param packet 要發送的封包物件
+	 * @see ServerBasePacket
+	 * @see L1World#getVisiblePlayer(L1Character)
 	 */
 	public void broadcastPacket(ServerBasePacket packet) {
 		for (L1PcInstance pc : L1World.getInstance().getVisiblePlayer(this)) {
@@ -240,10 +346,15 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * キャラクターの可視範囲に居るプレイヤーへ、パケットを送信する。 ただしターゲットの画面内には送信しない。
-	 * 
-	 * @param packet
-	 *            送信するパケットを表すServerBasePacketオブジェクト。
+	 * 向可視範圍內的玩家廣播封包（排除目標視野範圍）
+	 * <p>
+	 * 向角色視野範圍內的玩家發送封包，但排除在目標角色視野範圍內的玩家。
+	 * </p>
+	 *
+	 * @param packet 要發送的封包物件
+	 * @param target 要排除其視野範圍的目標角色
+	 * @see ServerBasePacket
+	 * @see L1World#getVisiblePlayerExceptTargetSight(L1Character, L1Character)
 	 */
 	public void broadcastPacketExceptTargetSight(ServerBasePacket packet,
 			L1Character target) {
@@ -253,12 +364,16 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * キャラクターの可視範囲でインビジを見破れるor見破れないプレイヤーを区別して、パケットを送信する。
-	 * 
-	 * @param packet
-	 *            送信するパケットを表すServerBasePacketオブジェクト。
-	 * @param isFindInvis
-	 *            true : 見破れるプレイヤーにだけパケットを送信する。 false : 見破れないプレイヤーにだけパケットを送信する。
+	 * 向可視範圍內能/不能看穿隱形的玩家廣播封包
+	 * <p>
+	 * 根據玩家是否擁有看穿隱形的能力，選擇性地發送封包。
+	 * 用於處理隱形狀態的角色的封包發送。
+	 * </p>
+	 *
+	 * @param packet 要發送的封包物件
+	 * @param isFindInvis true：只發給能看穿隱形的玩家；false：只發給不能看穿隱形的玩家
+	 * @see ServerBasePacket
+	 * @see L1SkillId#GMSTATUS_FINDINVIS
 	 */
 	public void broadcastPacketForFindInvis(ServerBasePacket packet,
 			boolean isFindInvis) {
@@ -276,10 +391,15 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * キャラクターの50マス以内に居るプレイヤーへ、パケットを送信する。
-	 * 
-	 * @param packet
-	 *            送信するパケットを表すServerBasePacketオブジェクト。
+	 * 向 50 格範圍內的玩家廣播封包
+	 * <p>
+	 * 向角色 50 格範圍內的所有玩家發送封包。
+	 * 用於需要較大廣播範圍的情況（如大型技能效果）。
+	 * </p>
+	 *
+	 * @param packet 要發送的封包物件
+	 * @see ServerBasePacket
+	 * @see L1World#getVisiblePlayer(L1Character, int)
 	 */
 	public void wideBroadcastPacket(ServerBasePacket packet) {
 		for (L1PcInstance pc : L1World.getInstance().getVisiblePlayer(this, 50)) {
@@ -288,9 +408,13 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * キャラクターの正面の座標を返す。
-	 * 
-	 * @return 正面の座標
+	 * 取得角色正面的座標
+	 * <p>
+	 * 根據角色當前的方向（heading），計算並返回正面一格的座標。
+	 * </p>
+	 *
+	 * @return 包含 [x, y] 座標的陣列
+	 * @see #getHeading()
 	 */
 	public int[] getFrontLoc() {
 		int[] loc = new int[2];
@@ -324,13 +448,23 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * 指定された座標に対する方向を返す。
-	 * 
-	 * @param tx
-	 *            座標のX値
-	 * @param ty
-	 *            座標のY値
-	 * @return 指定された座標に対する方向
+	 * 計算面向指定座標的方向
+	 * <p>
+	 * 計算角色應該面向哪個方向才能朝向目標座標。
+	 * 使用距離加權計算，略微偏好上下左右四個主方向。
+	 * </p>
+	 *
+	 * <h4>方向編號：</h4>
+	 * <pre>
+	 *   0: 上      1: 右上    2: 右
+	 *   7: 左上               3: 右下
+	 *   6: 左      5: 左下    4: 下
+	 * </pre>
+	 *
+	 * @param tx 目標 X 座標
+	 * @param ty 目標 Y 座標
+	 * @return 方向編號（0-7）
+	 * @see #getHeading()
 	 */
 	public int targetDirection(int tx, int ty) {
 		float dis_x = Math.abs(getX() - tx); // Ｘ方向のターゲットまでの距離
@@ -392,13 +526,25 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * 指定された座標までの直線上に、障害物が存在*しないか*を返す。
-	 * 
-	 * @param tx
-	 *            座標のX値
-	 * @param ty
-	 *            座標のY値
-	 * @return 障害物が無ければtrue、あればfalseを返す。
+	 * 檢查到目標座標的直線路徑是否無障礙物
+	 * <p>
+	 * 檢查從當前位置到目標座標的直線路徑上是否有阻擋箭矢通過的障礙物。
+	 * 用於判斷遠程攻擊是否有視線（Line of Sight）。
+	 * </p>
+	 *
+	 * <h4>檢查流程：</h4>
+	 * <ol>
+	 * <li>從當前位置開始，朝目標方向逐格檢查</li>
+	 * <li>最多檢查 15 格距離</li>
+	 * <li>檢查每格是否允許箭矢通過</li>
+	 * <li>若遇到阻礙則返回 false</li>
+	 * </ol>
+	 *
+	 * @param tx 目標 X 座標
+	 * @param ty 目標 Y 座標
+	 * @return true：路徑無障礙；false：有障礙物
+	 * @see L1Map#isArrowPassable(int, int, int)
+	 * @see #targetDirection(int, int)
 	 */
 	public boolean glanceCheck(int tx, int ty) {
 		int chx = getX();
@@ -420,15 +566,25 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * 指定された座標へ攻撃可能であるかを返す。
-	 * 
-	 * @param x
-	 *            座標のX値。
-	 * @param y
-	 *            座標のY値。
-	 * @param range
-	 *            攻撃可能な範囲(タイル数)
-	 * @return 攻撃可能であればtrue,不可能であればfalse
+	 * 檢查是否可以攻擊指定座標
+	 * <p>
+	 * 綜合檢查距離和視線，判斷是否可以對目標座標進行攻擊。
+	 * </p>
+	 *
+	 * <h4>判斷邏輯：</h4>
+	 * <ul>
+	 * <li><b>遠程武器（range ≥ 7）</b>：使用棋盤距離（允許斜線）</li>
+	 * <li><b>近戰武器（range < 7）</b>：使用直線距離</li>
+	 * <li>必須通過視線檢查（無障礙物阻擋）</li>
+	 * </ul>
+	 *
+	 * @param x 目標 X 座標
+	 * @param y 目標 Y 座標
+	 * @param range 攻擊範圍（格數）
+	 * @return true：可以攻擊；false：無法攻擊
+	 * @see #glanceCheck(int, int)
+	 * @see Point#getTileDistance(Point)
+	 * @see Point#getTileLineDistance(Point)
 	 */
 	public boolean isAttackPosition(int x, int y, int range) {
 		if (range >= 7) // 遠隔武器（７以上の場合斜めを考慮すると画面外に出る)
@@ -446,21 +602,29 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * キャラクターのインベントリを返す。
-	 * 
-	 * @return キャラクターのインベントリを表す、L1Inventoryオブジェクト。
+	 * 取得角色背包
+	 * <p>
+	 * 返回角色的物品容器。子類別必須覆寫此方法。
+	 * </p>
+	 *
+	 * @return 角色的背包物件（基礎實作返回 null）
+	 * @see L1Inventory
 	 */
 	public L1Inventory getInventory() {
 		return null;
 	}
 
 	/**
-	 * キャラクターへ、新たにスキル効果を追加する。
-	 * 
-	 * @param skillId
-	 *            追加する効果のスキルID。
-	 * @param timeMillis
-	 *            追加する効果の持続時間。無限の場合は0。
+	 * 為角色添加技能效果
+	 * <p>
+	 * 私有方法，由 {@link #setSkillEffect(int, int)} 調用。
+	 * 創建技能定時器並開始計時。
+	 * </p>
+	 *
+	 * @param skillId 技能 ID
+	 * @param timeMillis 持續時間（毫秒），0 表示永久
+	 * @see #setSkillEffect(int, int)
+	 * @see L1SkillTimer
 	 */
 	private void addSkillEffect(int skillId, int timeMillis) {
 		L1SkillTimer timer = null;
@@ -472,14 +636,27 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * キャラクターへ、スキル効果を設定する。<br>
-	 * 重複するスキルがない場合は、新たにスキル効果を追加する。<br>
-	 * 重複するスキルがある場合は、残り効果時間とパラメータの効果時間の長い方を優先して設定する。
-	 * 
-	 * @param skillId
-	 *            設定する効果のスキルID。
-	 * @param timeMillis
-	 *            設定する効果の持続時間。無限の場合は0。
+	 * 設定技能效果
+	 * <p>
+	 * 為角色設定技能效果。若技能已存在，則比較剩餘時間，保留較長的效果。
+	 * </p>
+	 *
+	 * <h4>處理邏輯：</h4>
+	 * <ul>
+	 * <li><b>技能不存在</b>：直接添加新效果</li>
+	 * <li><b>技能已存在</b>：
+	 *   <ul>
+	 *   <li>若新效果更長或為永久（0），則覆蓋舊效果</li>
+	 *   <li>若舊效果更長，則保留舊效果</li>
+	 *   </ul>
+	 * </li>
+	 * </ul>
+	 *
+	 * @param skillId 技能 ID
+	 * @param timeMillis 持續時間（毫秒），0 表示永久
+	 * @see #addSkillEffect(int, int)
+	 * @see #hasSkillEffect(int)
+	 * @see #getSkillEffectTimeSec(int)
 	 */
 	public void setSkillEffect(int skillId, int timeMillis) {
 		if (hasSkillEffect(skillId)) {
@@ -497,10 +674,14 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * キャラクターから、スキル効果を削除する。
-	 * 
-	 * @param skillId
-	 *            削除する効果のスキルID
+	 * 移除技能效果
+	 * <p>
+	 * 從角色身上移除指定的技能效果，並結束其定時器。
+	 * </p>
+	 *
+	 * @param skillId 要移除的技能 ID
+	 * @see #setSkillEffect(int, int)
+	 * @see L1SkillTimer#end()
 	 */
 	public void removeSkillEffect(int skillId) {
 		L1SkillTimer timer = _skillEffect.remove(skillId);
@@ -510,10 +691,15 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * キャラクターから、スキル効果のタイマーを削除する。 スキル効果は削除されない。
-	 * 
-	 * @param skillId
-	 *            削除するタイマーのスキルＩＤ
+	 * 刪除技能效果定時器（但保留效果）
+	 * <p>
+	 * 從角色身上移除技能定時器，但不觸發效果結束處理。
+	 * 用於特殊情況下需要保留效果但停止計時的場合。
+	 * </p>
+	 *
+	 * @param skillId 要刪除定時器的技能 ID
+	 * @see #removeSkillEffect(int)
+	 * @see L1SkillTimer#kill()
 	 */
 	public void killSkillEffectTimer(int skillId) {
 		L1SkillTimer timer = _skillEffect.remove(skillId);
@@ -523,7 +709,13 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * キャラクターから、全てのスキル効果タイマーを削除する。スキル効果は削除されない。
+	 * 清除所有技能效果定時器
+	 * <p>
+	 * 停止並清除所有技能效果的定時器，但不觸發效果結束處理。
+	 * 通常用於角色下線或特殊狀態重置。
+	 * </p>
+	 *
+	 * @see #killSkillEffectTimer(int)
 	 */
 	public void clearSkillEffectTimer() {
 		for (L1SkillTimer timer : _skillEffect.values()) {
@@ -535,22 +727,23 @@ public class L1Character extends L1Object {
 	}
 
 	/**
-	 * キャラクターに、スキル効果が掛かっているかを返す。
-	 * 
-	 * @param skillId
-	 *            調べる効果のスキルID。
-	 * @return 魔法効果があればtrue、なければfalse。
+	 * 檢查角色是否擁有指定技能效果
+	 *
+	 * @param skillId 要檢查的技能 ID
+	 * @return true：有該效果；false：沒有該效果
+	 * @see #setSkillEffect(int, int)
 	 */
 	public boolean hasSkillEffect(int skillId) {
 		return _skillEffect.containsKey(skillId);
 	}
 
 	/**
-	 * キャラクターのスキル効果の持続時間を返す。
-	 * 
-	 * @param skillId
-	 *            調べる効果のスキルID
-	 * @return スキル効果の残り時間(秒)。スキルがかかっていないか効果時間が無限の場合、-1。
+	 * 取得技能效果剩餘時間
+	 *
+	 * @param skillId 要查詢的技能 ID
+	 * @return 剩餘時間（秒），若技能不存在或為永久效果則返回 -1
+	 * @see #hasSkillEffect(int)
+	 * @see L1SkillTimer#getRemainingTime()
 	 */
 	public int getSkillEffectTimeSec(int skillId) {
 		L1SkillTimer timer = _skillEffect.get(skillId);

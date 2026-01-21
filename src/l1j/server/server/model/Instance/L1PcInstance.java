@@ -141,84 +141,264 @@ import l1j.server.server.utils.collections.Lists;
 // L1World
 //
 
+/**
+ * 玩家角色實例類別 - 代表遊戲中的一個玩家角色
+ *
+ * <p>此類別是整個遊戲中最核心的類別之一,繼承自 {@link L1Character},
+ * 代表一個完整的玩家角色,包含角色的所有屬性、狀態、技能、物品等。
+ *
+ * <h3>主要功能領域:</h3>
+ * <ul>
+ *   <li><b>基本屬性:</b> STR, DEX, CON, INT, WIS, CHA 及其衍生屬性</li>
+ *   <li><b>職業系統:</b> 八大職業 (王族、騎士、妖精、法師、黑妖、龍騎士、幻術師)</li>
+ *   <li><b>狀態管理:</b> HP/MP 回復、Buff/Debuff、狀態效果</li>
+ *   <li><b>物品系統:</b> 背包、裝備、倉庫管理</li>
+ *   <li><b>技能系統:</b> 技能學習、使用、冷卻時間</li>
+ *   <li><b>社交系統:</b> 血盟、組隊、好友、交易</li>
+ *   <li><b>戰鬥系統:</b> 攻擊、防禦、閃避、命中</li>
+ *   <li><b>移動系統:</b> 座標、地圖、傳送</li>
+ *   <li><b>任務系統:</b> 任務進度追蹤</li>
+ *   <li><b>PK 系統:</b> 正義值、PKer 狀態、戰爭</li>
+ *   <li><b>網路通訊:</b> 封包發送、客戶端連線管理</li>
+ * </ul>
+ *
+ * <h3>職業 ID (ClassId) 常數:</h3>
+ * <ul>
+ *   <li>{@link #CLASSID_PRINCE} (0) - 王子</li>
+ *   <li>{@link #CLASSID_PRINCESS} (1) - 公主</li>
+ *   <li>{@link #CLASSID_KNIGHT_MALE} (61) - 男騎士</li>
+ *   <li>{@link #CLASSID_KNIGHT_FEMALE} (48) - 女騎士</li>
+ *   <li>{@link #CLASSID_ELF_MALE} (138) - 男妖精</li>
+ *   <li>{@link #CLASSID_ELF_FEMALE} (37) - 女妖精</li>
+ *   <li>{@link #CLASSID_WIZARD_MALE} (734) - 男法師</li>
+ *   <li>{@link #CLASSID_WIZARD_FEMALE} (1186) - 女法師</li>
+ *   <li>{@link #CLASSID_DARK_ELF_MALE} (2786) - 男黑妖</li>
+ *   <li>{@link #CLASSID_DARK_ELF_FEMALE} (2796) - 女黑妖</li>
+ *   <li>{@link #CLASSID_DRAGON_KNIGHT_MALE} (6658) - 男龍騎士</li>
+ *   <li>{@link #CLASSID_DRAGON_KNIGHT_FEMALE} (6661) - 女龍騎士</li>
+ *   <li>{@link #CLASSID_ILLUSIONIST_MALE} (6671) - 男幻術師</li>
+ *   <li>{@link #CLASSID_ILLUSIONIST_FEMALE} (6650) - 女幻術師</li>
+ * </ul>
+ *
+ * <h3>核心子系統:</h3>
+ * <ul>
+ *   <li><b>L1PcInventory:</b> 角色背包管理</li>
+ *   <li><b>L1DwarfInventory:</b> 矮人倉庫</li>
+ *   <li><b>L1Quest:</b> 任務系統</li>
+ *   <li><b>L1EquipmentSlot:</b> 裝備欄位管理</li>
+ *   <li><b>L1Party:</b> 組隊系統</li>
+ *   <li><b>L1Clan:</b> 血盟系統</li>
+ *   <li><b>L1Trade:</b> 交易系統</li>
+ *   <li><b>L1Karma:</b> 正義值系統</li>
+ *   <li><b>HpRegeneration:</b> HP 自動回復</li>
+ *   <li><b>MpRegeneration:</b> MP 自動回復</li>
+ *   <li><b>L1PcAutoUpdate:</b> 角色狀態自動更新</li>
+ *   <li><b>L1PcExpMonitor:</b> 經驗值監控</li>
+ * </ul>
+ *
+ * <h3>使用範例:</h3>
+ * <pre>
+ * // 載入角色
+ * L1PcInstance pc = L1PcInstance.load("CharacterName");
+ *
+ * // 設定網路連線
+ * pc.setNetConnection(clientThread);
+ * pc.setPacketOutput(clientThread);
+ *
+ * // 加入世界
+ * L1World.getInstance().storeObject(pc);
+ * L1World.getInstance().addVisibleObject(pc);
+ *
+ * // 發送封包
+ * pc.sendPackets(new S_SystemMessage("歡迎回來"));
+ *
+ * // 增加經驗值
+ * pc.addExp(1000);
+ *
+ * // 儲存角色資料
+ * pc.save();
+ * </pre>
+ *
+ * <h3>生命週期:</h3>
+ * <ol>
+ *   <li>載入 - {@code L1PcInstance.load()} 從資料庫載入角色資料</li>
+ *   <li>初始化 - 設定網路連線、啟動定時器、載入物品</li>
+ *   <li>遊戲中 - 處理各種遊戲邏輯、狀態更新</li>
+ *   <li>登出 - 停止所有定時器、儲存資料、清理資源</li>
+ * </ol>
+ *
+ * <h3>狀態更新機制:</h3>
+ * <p>角色使用多個定時器進行週期性狀態更新:
+ * <ul>
+ *   <li>HP 回復定時器 (1秒)</li>
+ *   <li>MP 回復定時器 (1秒)</li>
+ *   <li>魔法娃娃 HP 回復 (64秒)</li>
+ *   <li>魔法娃娃 MP 回復 (64秒)</li>
+ *   <li>魔法娃娃製造道具 (240秒)</li>
+ *   <li>覺醒技能 MP 消耗</li>
+ *   <li>角色自動更新</li>
+ *   <li>經驗值監控</li>
+ * </ul>
+ *
+ * <h3>執行緒安全:</h3>
+ * <p>此類別的許多方法會在不同執行緒中被呼叫 (網路執行緒、定時器執行緒等),
+ * 因此部分關鍵狀態使用同步機制保護。
+ *
+ * <h3>持久化:</h3>
+ * <p>角色資料會定期或在特定事件時儲存到資料庫:
+ * <ul>
+ *   <li>登出時</li>
+ *   <li>死亡時</li>
+ *   <li>升級時</li>
+ *   <li>重要狀態變更時</li>
+ * </ul>
+ *
+ * @see L1Character
+ * @see L1PcInventory
+ * @see L1Quest
+ * @see L1Party
+ * @see L1Clan
+ * @see CharacterTable
+ */
 public class L1PcInstance extends L1Character {
 	private static final long serialVersionUID = 1L;
 
+	/** 職業 ID: 男騎士 */
 	public static final int CLASSID_KNIGHT_MALE = 61;
 
+	/** 職業 ID: 女騎士 */
 	public static final int CLASSID_KNIGHT_FEMALE = 48;
 
+	/** 職業 ID: 男妖精 */
 	public static final int CLASSID_ELF_MALE = 138;
 
+	/** 職業 ID: 女妖精 */
 	public static final int CLASSID_ELF_FEMALE = 37;
 
+	/** 職業 ID: 男法師 */
 	public static final int CLASSID_WIZARD_MALE = 734;
 
+	/** 職業 ID: 女法師 */
 	public static final int CLASSID_WIZARD_FEMALE = 1186;
 
+	/** 職業 ID: 男黑妖 */
 	public static final int CLASSID_DARK_ELF_MALE = 2786;
 
+	/** 職業 ID: 女黑妖 */
 	public static final int CLASSID_DARK_ELF_FEMALE = 2796;
 
+	/** 職業 ID: 王子 */
 	public static final int CLASSID_PRINCE = 0;
 
+	/** 職業 ID: 公主 */
 	public static final int CLASSID_PRINCESS = 1;
 
+	/** 職業 ID: 男龍騎士 */
 	public static final int CLASSID_DRAGON_KNIGHT_MALE = 6658;
 
+	/** 職業 ID: 女龍騎士 */
 	public static final int CLASSID_DRAGON_KNIGHT_FEMALE = 6661;
 
+	/** 職業 ID: 男幻術師 */
 	public static final int CLASSID_ILLUSIONIST_MALE = 6671;
 
+	/** 職業 ID: 女幻術師 */
 	public static final int CLASSID_ILLUSIONIST_FEMALE = 6650;
 
+	/** HP 自然回復力 (經過計算後的最終值,最小為 0) */
 	private short _hpr = 0;
 
+	/** HP 自然回復力的真實值 (可能為負數) */
 	private short _trueHpr = 0;
 
-	/** 3.3C組隊系統 */
+	/** 3.3C組隊系統 - 組隊更新是否啟用 */
 	boolean _rpActive = false;
 
+	/** 組隊更新器 */
 	private L1PartyRefresh _rp;
 
+	/** 組隊類型 */
 	private int _partyType;
 
+	/**
+	 * 取得 HP 自然回復力
+	 * <p>最小值為 0 (不會是負數)
+	 *
+	 * @return HP 自然回復力
+	 */
 	public short getHpr() {
 		return (short) _hpr ;
 	}
 
+	/**
+	 * 增加 HP 自然回復力
+	 * <p>實際值可能為負數,但顯示值最小為 0
+	 *
+	 * @param i 要增加的 HP 回復力 (可為負數表示減少)
+	 */
 	public void addHpr(int i) {
 		_trueHpr += i;
 		_hpr = (short) Math.max(0, _trueHpr);
 	}
 
+	/** MP 自然回復力 (經過計算後的最終值,最小為 0) */
 	private short _mpr = 0;
 
+	/** MP 自然回復力的真實值 (可能為負數) */
 	private short _trueMpr = 0;
 
+	/**
+	 * 取得 MP 自然回復力
+	 * <p>最小值為 0 (不會是負數)
+	 *
+	 * @return MP 自然回復力
+	 */
 	public short getMpr() {
 		return (short) _mpr;
 	}
 
+	/**
+	 * 增加 MP 自然回復力
+	 * <p>實際值可能為負數,但顯示值最小為 0
+	 *
+	 * @param i 要增加的 MP 回復力 (可為負數表示減少)
+	 */
 	public void addMpr(int i) {
 		_trueMpr += i;
 		_mpr = (short) Math.max(0, _trueMpr);
 	}
 
-	public short _originalHpr = 0; // ● オリジナルCON HPR
+	/** 原始 CON 帶來的 HP 自然回復力 */
+	public short _originalHpr = 0;
 
+	/**
+	 * 取得原始 HP 自然回復力 (來自 CON)
+	 *
+	 * @return 原始 HP 自然回復力
+	 */
 	public short getOriginalHpr() {
 
 		return _originalHpr;
 	}
 
-	public short _originalMpr = 0; // ● オリジナルWIS MPR
+	/** 原始 WIS 帶來的 MP 自然回復力 */
+	public short _originalMpr = 0;
 
+	/**
+	 * 取得原始 MP 自然回復力 (來自 WIS)
+	 *
+	 * @return 原始 MP 自然回復力
+	 */
 	public short getOriginalMpr() {
 
 		return _originalMpr;
 	}
 
+	/**
+	 * 啟動 HP 自動回復定時器
+	 * <p>每 1 秒執行一次 HP 回復檢查
+	 * <p>若已經啟動則不會重複啟動
+	 */
 	public void startHpRegeneration() {
 		final int INTERVAL = 1000;
 
@@ -229,6 +409,10 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 停止 HP 自動回復定時器
+	 * <p>通常在角色登出或死亡時呼叫
+	 */
 	public void stopHpRegeneration() {
 		if (_hpRegenActive) {
 			_hpRegen.cancel();
@@ -237,6 +421,11 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 啟動 MP 自動回復定時器
+	 * <p>每 1 秒執行一次 MP 回復檢查
+	 * <p>若已經啟動則不會重複啟動
+	 */
 	public void startMpRegeneration() {
 		final int INTERVAL = 1000;
 
@@ -247,6 +436,10 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 停止 MP 自動回復定時器
+	 * <p>通常在角色登出或死亡時呼叫
+	 */
 	public void stopMpRegeneration() {
 		if (_mpRegenActive) {
 			_mpRegen.cancel();
@@ -255,7 +448,11 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
-	// 獲得道具
+	/**
+	 * 啟動魔法娃娃製造道具定時器
+	 * <p>每 240 秒 (4 分鐘) 執行一次
+	 * <p>需要擁有具備製造道具能力的魔法娃娃才會啟動
+	 */
 	public void startItemMakeByDoll() {
 		final int INTERVAL_BY_DOLL = 240000;
 		boolean isExistItemMakeDoll = false;
@@ -270,7 +467,9 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
-	// 獲得道具停止
+	/**
+	 * 停止魔法娃娃製造道具定時器
+	 */
 	public void stopItemMakeByDoll() {
 		if (_ItemMakeActiveByDoll) {
 			_itemMakeByDoll.cancel();
@@ -279,7 +478,11 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
-	// 回血開始
+	/**
+	 * 啟動魔法娃娃 HP 回復定時器
+	 * <p>每 64 秒執行一次
+	 * <p>需要擁有具備 HP 回復能力的魔法娃娃才會啟動
+	 */
 	public void startHpRegenerationByDoll() {
 		final int INTERVAL_BY_DOLL = 64000;
 		boolean isExistHprDoll = false;
@@ -294,7 +497,9 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
-	// 回血停止
+	/**
+	 * 停止魔法娃娃 HP 回復定時器
+	 */
 	public void stopHpRegenerationByDoll() {
 		if (_hpRegenActiveByDoll) {
 			_hpRegenByDoll.cancel();
@@ -303,7 +508,13 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
-	// 回魔開始
+	/**
+	 * 啟動由魔法娃娃提供的MP回復機制
+	 * <p>
+	 * 當玩家裝備具有MP回復效果的魔法娃娃時，此方法會啟動定時任務，
+	 * 每64秒自動回復MP。
+	 * </p>
+	 */
 	public void startMpRegenerationByDoll() {
 		final int INTERVAL_BY_DOLL = 64000;
 		boolean isExistMprDoll = false;
@@ -317,7 +528,12 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
-	// 回魔停止
+	/**
+	 * 停止由魔法娃娃提供的MP回復機制
+	 * <p>
+	 * 當玩家取消裝備魔法娃娃或娃娃效果結束時，停止MP自動回復的定時任務。
+	 * </p>
+	 */
 	public void stopMpRegenerationByDoll() {
 		if (_mpRegenActiveByDoll) {
 			_mpRegenByDoll.cancel();
@@ -326,6 +542,13 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 啟動覺醒技能的MP消耗機制
+	 * <p>
+	 * 當玩家使用覺醒(Awake)技能時，每4秒會自動扣除一定量的MP。
+	 * 此方法啟動定時任務來執行MP扣除。
+	 * </p>
+	 */
 	public void startMpReductionByAwake() {
 		final int INTERVAL_BY_AWAKE = 4000;
 		if (!_mpReductionActiveByAwake) {
@@ -335,6 +558,12 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 停止覺醒技能的MP消耗機制
+	 * <p>
+	 * 當覺醒技能效果結束時，停止MP自動扣除的定時任務。
+	 * </p>
+	 */
 	public void stopMpReductionByAwake() {
 		if (_mpReductionActiveByAwake) {
 			_mpReductionByAwake.cancel();
@@ -343,6 +572,13 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 啟動物件自動更新機制
+	 * <p>
+	 * 此方法會移除所有已知物件，並啟動定時任務來自動更新玩家周圍的物件狀態。
+	 * 更新頻率由INTERVAL_AUTO_UPDATE常數定義(300毫秒)。
+	 * </p>
+	 */
 	public void startObjectAutoUpdate() {
 		removeAllKnownObjects();
 		_autoUpdateFuture = GeneralThreadPool.getInstance().pcScheduleAtFixedRate(new L1PcAutoUpdate(getId()), 0L, INTERVAL_AUTO_UPDATE);
@@ -372,14 +608,25 @@ public class L1PcInstance extends L1Character {
 
 	}
 
+	/** 物件自動更新的時間間隔(毫秒) */
 	private static final long INTERVAL_AUTO_UPDATE = 300;
 
+	/** 物件自動更新的定時任務 */
 	private ScheduledFuture<?> _autoUpdateFuture;
 
+	/** 經驗值監控的時間間隔(毫秒) */
 	private static final long INTERVAL_EXP_MONITOR = 500;
 
+	/** 經驗值監控的定時任務 */
 	private ScheduledFuture<?> _expMonitorFuture;
 
+	/**
+	 * 處理經驗值變化事件
+	 * <p>
+	 * 當玩家經驗值改變時，此方法會檢查是否達到升級或降級條件，
+	 * 並執行相應的等級變更處理。
+	 * </p>
+	 */
 	public void onChangeExp() {
 		int level = ExpTable.getLevelByExp(getExp());
 		int char_level = getLevel();
@@ -437,7 +684,13 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
-	// 範囲外になった認識済みオブジェクトを除去
+	/**
+	 * 移除超出範圍的已知物件
+	 * <p>
+	 * 此方法會檢查玩家已知的所有物件，如果物件已經超出玩家的視野範圍，
+	 * 則從已知物件列表中移除，並發送移除物件的封包給客戶端。
+	 * </p>
+	 */
 	private void removeOutOfRangeObjects() {
 		for (L1Object known : getKnownObjects()) {
 			if (known == null) {
@@ -459,7 +712,17 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
-	// 更新範圍內的物件
+	/**
+	 * 更新範圍內的物件
+	 * <p>
+	 * 此方法會執行以下操作：
+	 * 1. 移除超出範圍的已知物件
+	 * 2. 檢測範圍內的新物件並加入已知物件列表
+	 * 3. 處理NPC的隱藏狀態
+	 * 4. 如果啟用HP條顯示，發送HP條資訊
+	 * 5. 特別處理旅館地圖的房間隔離邏輯
+	 * </p>
+	 */
 	public void updateObject() {
 		removeOutOfRangeObjects();
 
@@ -494,6 +757,13 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 發送視覺效果封包
+	 * <p>
+	 * 此方法會根據玩家當前的狀態（中毒、麻痺等）發送對應的視覺效果封包
+	 * 給玩家自己及周圍的其他玩家。麻痺效果優先於中毒效果顯示。
+	 * </p>
+	 */
 	private void sendVisualEffect() {
 		int poisonId = 0;
 		if (getPoison() != null) { // 毒状態
@@ -509,6 +779,15 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 在登入時發送視覺效果
+	 * <p>
+	 * 玩家登入時會執行以下處理：
+	 * 1. 發送所有城堡的主人資訊
+	 * 2. 如果玩家是血盟主且血盟擁有城堡，發送城主標記
+	 * 3. 發送玩家當前的中毒、麻痺等狀態效果
+	 * </p>
+	 */
 	public void sendVisualEffectAtLogin() {
 		for (L1Castle ca : CastleTable.getInstance().getCastleTableList()) {
 			sendPackets(new S_CastleMaster(ca.getId(), ca.getHeldClanId() > 0 ? ca.getHeldClanId() : 0));
@@ -527,6 +806,14 @@ public class L1PcInstance extends L1Character {
 		sendVisualEffect();
 	}
 
+	/**
+	 * 在傳送時發送視覺效果
+	 * <p>
+	 * 玩家傳送後需要重新發送某些視覺效果：
+	 * 1. 如果玩家處於醉酒狀態，發送醉酒效果
+	 * 2. 發送中毒、麻痺等狀態效果
+	 * </p>
+	 */
 	public void sendVisualEffectAtTeleport() {
 		if (isDrink()) { // liquorで酔っている
 			sendPackets(new S_Liquor(getId(), 1));
@@ -535,67 +822,136 @@ public class L1PcInstance extends L1Character {
 		sendVisualEffect();
 	}
 
+	/** 玩家已學習的技能列表 */
 	private List<Integer> skillList = Lists.newList();
 
+	/**
+	 * 設定玩家已學習的技能
+	 *
+	 * @param skillid 技能ID
+	 */
 	public void setSkillMastery(int skillid) {
 		if (!skillList.contains(skillid)) {
 			skillList.add(skillid);
 		}
 	}
 
+	/**
+	 * 移除玩家已學習的技能
+	 *
+	 * @param skillid 技能ID
+	 */
 	public void removeSkillMastery(int skillid) {
 		if (skillList.contains(skillid)) {
 			skillList.remove((Object) skillid);
 		}
 	}
 
+	/**
+	 * 檢查玩家是否已學習指定技能
+	 *
+	 * @param skillid 技能ID
+	 * @return 如果已學習返回true，否則返回false
+	 */
 	public boolean isSkillMastery(int skillid) {
 		return skillList.contains(skillid);
 	}
 
+	/**
+	 * 清除玩家所有已學習的技能
+	 */
 	public void clearSkillMastery() {
 		skillList.clear();
 	}
 
-	// 寵物競速
+	/** 寵物競速：當前圈數 */
 	private int _lap = 1;
 
+	/**
+	 * 設定寵物競速的圈數
+	 *
+	 * @param i 圈數
+	 */
 	public void setLap(int i) {
 		_lap = i;
 	}
 
+	/**
+	 * 取得寵物競速的圈數
+	 *
+	 * @return 當前圈數
+	 */
 	public int getLap() {
 		return _lap;
 	}
 
+	/** 寵物競速：圈內檢查點編號 */
 	private int _lapCheck = 0;
 
+	/**
+	 * 設定寵物競速的檢查點編號
+	 *
+	 * @param i 檢查點編號
+	 */
 	public void setLapCheck(int i) {
 		_lapCheck = i;
 	}
 
+	/**
+	 * 取得寵物競速的檢查點編號
+	 *
+	 * @return 當前檢查點編號
+	 */
 	public int getLapCheck() {
 		return _lapCheck;
 	}
 
 	/**
-	 * 只是將總圈數的完程度數量化
+	 * 取得寵物競速的總分數
+	 * <p>
+	 * 將總圈數的完成進度數量化，用於排名比較。
+	 * 計算公式：圈數 * 29 + 檢查點編號
+	 * </p>
+	 *
+	 * @return 競速分數
 	 */
 	public int getLapScore() {
 		return _lap * 29 + _lapCheck;
 	}
 
-	// 補充
+	/** 是否在命令列表中 */
 	private boolean _order_list = false;
 
+	/**
+	 * 檢查是否在命令列表中
+	 *
+	 * @return 如果在列表中返回true
+	 */
 	public boolean isInOrderList() {
 		return _order_list;
 	}
 
+	/**
+	 * 設定是否在命令列表中
+	 *
+	 * @param bool 是否在列表中
+	 */
 	public void setInOrderList(boolean bool) {
 		_order_list = bool;
 	}
 
+	/**
+	 * L1PcInstance建構子
+	 * <p>
+	 * 初始化玩家實例的基本屬性，包括：
+	 * - 存取權限等級
+	 * - 當前武器
+	 * - 各種背包(一般背包、矮人倉庫、精靈倉庫、交易視窗)
+	 * - 書籤列表
+	 * - 任務物件
+	 * - 裝備欄位
+	 * </p>
+	 */
 	public L1PcInstance() {
 		_accessLevel = 0;
 		_currentWeapon = 0;
@@ -642,61 +998,138 @@ public class L1PcInstance extends L1Character {
 		return _inventory;
 	}
 
+	/**
+	 * 取得矮人倉庫
+	 *
+	 * @return 矮人倉庫實例
+	 */
 	public L1DwarfInventory getDwarfInventory() {
 		return _dwarf;
 	}
 
+	/**
+	 * 取得精靈專用矮人倉庫
+	 *
+	 * @return 精靈矮人倉庫實例
+	 */
 	public L1DwarfForElfInventory getDwarfForElfInventory() {
 		return _dwarfForElf;
 	}
 
+	/**
+	 * 取得交易視窗背包
+	 *
+	 * @return 交易視窗背包實例
+	 */
 	public L1Inventory getTradeWindowInventory() {
 		return _tradewindow;
 	}
 
+	/**
+	 * 檢查是否處於GM隱身狀態
+	 *
+	 * @return 如果處於GM隱身狀態返回true
+	 */
 	public boolean isGmInvis() {
 		return _gmInvis;
 	}
 
+	/**
+	 * 設定GM隱身狀態
+	 *
+	 * @param flag 是否隱身
+	 */
 	public void setGmInvis(boolean flag) {
 		_gmInvis = flag;
 	}
 
+	/**
+	 * 取得當前裝備的武器類型
+	 *
+	 * @return 武器類型ID
+	 */
 	public int getCurrentWeapon() {
 		return _currentWeapon;
 	}
 
+	/**
+	 * 設定當前裝備的武器類型
+	 *
+	 * @param i 武器類型ID
+	 */
 	public void setCurrentWeapon(int i) {
 		_currentWeapon = i;
 	}
 
+	/**
+	 * 取得角色類型
+	 *
+	 * @return 角色類型
+	 */
 	public int getType() {
 		return _type;
 	}
 
+	/**
+	 * 設定角色類型
+	 *
+	 * @param i 角色類型
+	 */
 	public void setType(int i) {
 		_type = i;
 	}
 
+	/**
+	 * 取得存取權限等級
+	 * <p>
+	 * 權限等級決定玩家可使用的GM指令範圍
+	 * </p>
+	 *
+	 * @return 存取權限等級
+	 */
 	public short getAccessLevel() {
 		return _accessLevel;
 	}
 
+	/**
+	 * 設定存取權限等級
+	 *
+	 * @param i 存取權限等級
+	 */
 	public void setAccessLevel(short i) {
 		_accessLevel = i;
 	}
 
+	/**
+	 * 取得職業ID
+	 *
+	 * @return 職業ID
+	 */
 	public int getClassId() {
 		return _classId;
 	}
 
+	/**
+	 * 設定職業ID
+	 * <p>
+	 * 設定職業ID時會同時初始化對應的職業特性物件
+	 * </p>
+	 *
+	 * @param i 職業ID
+	 */
 	public void setClassId(int i) {
 		_classId = i;
 		_classFeature = L1ClassFeature.newClassFeature(i);
 	}
 
+	/** 職業特性物件 */
 	private L1ClassFeature _classFeature = null;
 
+	/**
+	 * 取得職業特性物件
+	 *
+	 * @return 職業特性物件
+	 */
 	public L1ClassFeature getClassFeature() {
 		return _classFeature;
 	}
@@ -711,89 +1144,183 @@ public class L1PcInstance extends L1Character {
 		_exp = i;
 	}
 
-	private int _PKcount; // ● PKカウント
+	/** PK計數 */
+	private int _PKcount;
 
+	/**
+	 * 取得PK計數
+	 *
+	 * @return PK計數值
+	 */
 	public int get_PKcount() {
 		return _PKcount;
 	}
 
+	/**
+	 * 設定PK計數
+	 *
+	 * @param i PK計數值
+	 */
 	public void set_PKcount(int i) {
 		_PKcount = i;
 	}
 
-	private int _PkCountForElf; // ● PKカウント(エルフ用)
+	/** PK計數(精靈專用) */
+	private int _PkCountForElf;
 
+	/**
+	 * 取得精靈的PK計數
+	 *
+	 * @return 精靈PK計數值
+	 */
 	public int getPkCountForElf() {
 		return _PkCountForElf;
 	}
 
+	/**
+	 * 設定精靈的PK計數
+	 *
+	 * @param i 精靈PK計數值
+	 */
 	public void setPkCountForElf(int i) {
 		_PkCountForElf = i;
 	}
 
-	private int _clanid; // ● クランＩＤ
+	/** 血盟ID */
+	private int _clanid;
 
+	/**
+	 * 取得血盟ID
+	 *
+	 * @return 血盟ID
+	 */
 	public int getClanid() {
 		return _clanid;
 	}
 
+	/**
+	 * 設定血盟ID
+	 *
+	 * @param i 血盟ID
+	 */
 	public void setClanid(int i) {
 		_clanid = i;
 	}
 
-	private String clanname; // ● クラン名
+	/** 血盟名稱 */
+	private String clanname;
 
+	/**
+	 * 取得血盟名稱
+	 *
+	 * @return 血盟名稱
+	 */
 	public String getClanname() {
 		return clanname;
 	}
 
+	/**
+	 * 設定血盟名稱
+	 *
+	 * @param s 血盟名稱
+	 */
 	public void setClanname(String s) {
 		clanname = s;
 	}
 
-	// 参照を持つようにしたほうがいいかもしれない
+	/**
+	 * 取得血盟物件
+	 *
+	 * @return 血盟物件，如果未加入血盟則返回null
+	 */
 	public L1Clan getClan() {
 		return L1World.getInstance().getClan(getClanname());
 	}
 
-	private int _clanRank; // ● クラン内のランク(血盟君主、守護騎士、一般、見習)
+	/** 血盟階級(血盟君主、守護騎士、一般、見習) */
+	private int _clanRank;
 
+	/**
+	 * 取得血盟階級
+	 *
+	 * @return 血盟階級
+	 */
 	public int getClanRank() {
 		return _clanRank;
 	}
 
+	/**
+	 * 設定血盟階級
+	 *
+	 * @param i 血盟階級
+	 */
 	public void setClanRank(int i) {
 		_clanRank = i;
 	}
-	
-	private int _clanMemberId; // 血盟成員Id
 
+	/** 血盟成員ID */
+	private int _clanMemberId;
+
+	/**
+	 * 取得血盟成員ID
+	 *
+	 * @return 血盟成員ID
+	 */
 	public int getClanMemberId() {
 		return _clanMemberId;
 	}
 
+	/**
+	 * 設定血盟成員ID
+	 *
+	 * @param i 血盟成員ID
+	 */
 	public void setClanMemberId(int i) {
 		_clanMemberId = i;
 	}
-	
-	private String _clanMemberNotes; // 血盟成員備註
 
+	/** 血盟成員備註 */
+	private String _clanMemberNotes;
+
+	/**
+	 * 取得血盟成員備註
+	 *
+	 * @return 備註內容
+	 */
 	public String getClanMemberNotes() {
 		return _clanMemberNotes;
 	}
 
+	/**
+	 * 設定血盟成員備註
+	 *
+	 * @param s 備註內容
+	 */
 	public void setClanMemberNotes(String s) {
 		_clanMemberNotes = s;
 	}
 	
 
-	// 角色生日
+	/** 角色生日 */
 	private Timestamp _birthday;
 
-	public Timestamp getBirthday() {	
+	/**
+	 * 取得角色生日
+	 *
+	 * @return 生日時間戳記
+	 */
+	public Timestamp getBirthday() {
 		return _birthday;
 	}
 
+	/**
+	 * 取得簡化的生日格式
+	 * <p>
+	 * 將生日轉換為yyyyMMdd格式的整數，例如：20231225
+	 * </p>
+	 *
+	 * @return 生日整數(yyyyMMdd格式)，如果未設定生日則返回0
+	 */
 	public int getSimpleBirthday(){
 		if (_birthday != null){
 			SimpleDateFormat SimpleDate = new SimpleDateFormat("yyyyMMdd");
@@ -805,36 +1332,75 @@ public class L1PcInstance extends L1Character {
 		}
 	}	
 
+	/**
+	 * 設定角色生日
+	 *
+	 * @param time 生日時間戳記
+	 */
 	public void setBirthday(Timestamp time) {
 		_birthday = time;
 	}
 
-	public void setBirthday(){	
-		_birthday = new Timestamp(System.currentTimeMillis());	
+	/**
+	 * 設定角色生日為當前時間
+	 */
+	public void setBirthday(){
+		_birthday = new Timestamp(System.currentTimeMillis());
 	}
 
-	private byte _sex; // ● 性別
+	/** 性別 */
+	private byte _sex;
 
+	/**
+	 * 取得角色性別
+	 *
+	 * @return 性別(0:男性, 1:女性)
+	 */
 	public byte get_sex() {
 		return _sex;
 	}
 
+	/**
+	 * 設定角色性別
+	 *
+	 * @param i 性別(0:男性, 1:女性)
+	 */
 	public void set_sex(int i) {
 		_sex = (byte) i;
 	}
 
+	/**
+	 * 檢查是否為GM
+	 *
+	 * @return 如果是GM返回true
+	 */
 	public boolean isGm() {
 		return _gm;
 	}
 
+	/**
+	 * 設定是否為GM
+	 *
+	 * @param flag 是否為GM
+	 */
 	public void setGm(boolean flag) {
 		_gm = flag;
 	}
 
+	/**
+	 * 檢查是否為監視者
+	 *
+	 * @return 如果是監視者返回true
+	 */
 	public boolean isMonitor() {
 		return _monitor;
 	}
 
+	/**
+	 * 設定是否為監視者
+	 *
+	 * @param flag 是否為監視者
+	 */
 	public void setMonitor(boolean flag) {
 		_monitor = flag;
 	}
@@ -862,6 +1428,18 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 處理玩家登出
+	 * <p>
+	 * 執行以下操作：
+	 * 1. 解除血盟倉庫鎖定(如果正在使用)
+	 * 2. 通知其他玩家此玩家已登出
+	 * 3. 從世界移除此玩家物件
+	 * 4. 清空背包和倉庫物品列表
+	 * 5. 停止HP/MP回復
+	 * 6. 清除網路連接
+	 * </p>
+	 */
 	public void logout() {
 		L1World world = L1World.getInstance();
 		if (getClanid() != 0) // クラン所属
@@ -888,160 +1466,351 @@ public class L1PcInstance extends L1Character {
 		setPacketOutput(null);
 	}
 
+	/**
+	 * 取得網路連接執行緒
+	 *
+	 * @return 客戶端執行緒物件
+	 */
 	public ClientThread getNetConnection() {
 		return _netConnection;
 	}
 
+	/**
+	 * 設定網路連接執行緒
+	 *
+	 * @param clientthread 客戶端執行緒物件
+	 */
 	public void setNetConnection(ClientThread clientthread) {
 		_netConnection = clientthread;
 	}
 
+	/**
+	 * 檢查是否在隊伍中
+	 *
+	 * @return 如果在隊伍中返回true
+	 */
 	public boolean isInParty() {
 		return getParty() != null;
 	}
 
+	/**
+	 * 取得所屬隊伍
+	 *
+	 * @return 隊伍物件，如果未組隊則返回null
+	 */
 	public L1Party getParty() {
 		return _party;
 	}
 
+	/**
+	 * 設定所屬隊伍
+	 *
+	 * @param p 隊伍物件
+	 */
 	public void setParty(L1Party p) {
 		_party = p;
 	}
 
+	/**
+	 * 檢查是否在聊天頻道中
+	 *
+	 * @return 如果在聊天頻道中返回true
+	 */
 	public boolean isInChatParty() {
 		return getChatParty() != null;
 	}
 
+	/**
+	 * 取得聊天頻道
+	 *
+	 * @return 聊天頻道物件，如果未加入則返回null
+	 */
 	public L1ChatParty getChatParty() {
 		return _chatParty;
 	}
 
+	/**
+	 * 設定聊天頻道
+	 *
+	 * @param cp 聊天頻道物件
+	 */
 	public void setChatParty(L1ChatParty cp) {
 		_chatParty = cp;
 	}
 
+	/**
+	 * 取得隊伍ID
+	 *
+	 * @return 隊伍ID
+	 */
 	public int getPartyID() {
 		return _partyID;
 	}
 
+	/**
+	 * 設定隊伍ID
+	 *
+	 * @param partyID 隊伍ID
+	 */
 	public void setPartyID(int partyID) {
 		_partyID = partyID;
 	}
 
+	/**
+	 * 取得交易對象ID
+	 *
+	 * @return 交易對象ID
+	 */
 	public int getTradeID() {
 		return _tradeID;
 	}
 
+	/**
+	 * 設定交易對象ID
+	 *
+	 * @param tradeID 交易對象ID
+	 */
 	public void setTradeID(int tradeID) {
 		_tradeID = tradeID;
 	}
 
+	/**
+	 * 設定交易確認狀態
+	 *
+	 * @param tradeOk 是否已確認交易
+	 */
 	public void setTradeOk(boolean tradeOk) {
 		_tradeOk = tradeOk;
 	}
 
+	/**
+	 * 取得交易確認狀態
+	 *
+	 * @return 是否已確認交易
+	 */
 	public boolean getTradeOk() {
 		return _tradeOk;
 	}
 
+	/**
+	 * 取得臨時ID
+	 *
+	 * @return 臨時ID
+	 */
 	public int getTempID() {
 		return _tempID;
 	}
 
+	/**
+	 * 設定臨時ID
+	 *
+	 * @param tempID 臨時ID
+	 */
 	public void setTempID(int tempID) {
 		_tempID = tempID;
 	}
 
+	/**
+	 * 檢查是否正在傳送中
+	 *
+	 * @return 如果正在傳送返回true
+	 */
 	public boolean isTeleport() {
 		return _isTeleport;
 	}
 
+	/**
+	 * 設定傳送狀態
+	 *
+	 * @param flag 是否正在傳送
+	 */
 	public void setTeleport(boolean flag) {
 		_isTeleport = flag;
 	}
 
+	/**
+	 * 檢查是否處於醉酒狀態
+	 *
+	 * @return 如果醉酒返回true
+	 */
 	public boolean isDrink() {
 		return _isDrink;
 	}
 
+	/**
+	 * 設定醉酒狀態
+	 *
+	 * @param flag 是否醉酒
+	 */
 	public void setDrink(boolean flag) {
 		_isDrink = flag;
 	}
 
+	/**
+	 * 檢查是否處於灰色(Gres)狀態
+	 *
+	 * @return 如果處於灰色狀態返回true
+	 */
 	public boolean isGres() {
 		return _isGres;
 	}
 
+	/**
+	 * 設定灰色(Gres)狀態
+	 *
+	 * @param flag 是否處於灰色狀態
+	 */
 	public void setGres(boolean flag) {
 		_isGres = flag;
 	}
 
+	/**
+	 * 檢查是否為粉紅名稱(紫變狀態)
+	 *
+	 * @return 如果為粉紅名稱返回true
+	 */
 	public boolean isPinkName() {
 		return _isPinkName;
 	}
 
+	/**
+	 * 設定粉紅名稱(紫變狀態)
+	 *
+	 * @param flag 是否為粉紅名稱
+	 */
 	public void setPinkName(boolean flag) {
 		_isPinkName = flag;
 	}
 
+	/** 個人商店販賣物品列表 */
 	private List<L1PrivateShopSellList> _sellList = Lists.newList();
 
+	/**
+	 * 取得個人商店販賣物品列表
+	 *
+	 * @return 販賣物品列表
+	 */
 	public List<L1PrivateShopSellList> getSellList() {
 		return _sellList;
 	}
 
+	/** 個人商店收購物品列表 */
 	private List<L1PrivateShopBuyList> _buyList = Lists.newList();
 
+	/**
+	 * 取得個人商店收購物品列表
+	 *
+	 * @return 收購物品列表
+	 */
 	public List<L1PrivateShopBuyList> getBuyList() {
 		return _buyList;
 	}
 
+	/** 個人商店公告訊息 */
 	private byte[] _shopChat;
 
+	/**
+	 * 設定個人商店公告訊息
+	 *
+	 * @param chat 公告訊息(位元組陣列)
+	 */
 	public void setShopChat(byte[] chat) {
 		_shopChat = chat;
 	}
 
+	/**
+	 * 取得個人商店公告訊息
+	 *
+	 * @return 公告訊息(位元組陣列)
+	 */
 	public byte[] getShopChat() {
 		return _shopChat;
 	}
 
+	/** 是否正在開設個人商店 */
 	private boolean _isPrivateShop = false;
 
+	/**
+	 * 檢查是否正在開設個人商店
+	 *
+	 * @return 如果正在開設個人商店返回true
+	 */
 	public boolean isPrivateShop() {
 		return _isPrivateShop;
 	}
 
+	/**
+	 * 設定是否正在開設個人商店
+	 *
+	 * @param flag 是否正在開設個人商店
+	 */
 	public void setPrivateShop(boolean flag) {
 		_isPrivateShop = flag;
 	}
 
+	/** 是否正在與個人商店交易 */
 	private boolean _isTradingInPrivateShop = false;
 
+	/**
+	 * 檢查是否正在與個人商店交易
+	 *
+	 * @return 如果正在交易返回true
+	 */
 	public boolean isTradingInPrivateShop() {
 		return _isTradingInPrivateShop;
 	}
 
+	/**
+	 * 設定是否正在與個人商店交易
+	 *
+	 * @param flag 是否正在交易
+	 */
 	public void setTradingInPrivateShop(boolean flag) {
 		_isTradingInPrivateShop = flag;
 	}
 
-	private int _partnersPrivateShopItemCount = 0; // 閲覧中の個人商店のアイテム数
+	/** 正在瀏覽的個人商店的物品數量 */
+	private int _partnersPrivateShopItemCount = 0;
 
+	/**
+	 * 取得正在瀏覽的個人商店的物品數量
+	 *
+	 * @return 物品數量
+	 */
 	public int getPartnersPrivateShopItemCount() {
 		return _partnersPrivateShopItemCount;
 	}
 
+	/**
+	 * 設定正在瀏覽的個人商店的物品數量
+	 *
+	 * @param i 物品數量
+	 */
 	public void setPartnersPrivateShopItemCount(int i) {
 		_partnersPrivateShopItemCount = i;
 	}
 
+	/** 封包輸出物件 */
 	private PacketOutput _out;
 
+	/**
+	 * 設定封包輸出物件
+	 *
+	 * @param out 封包輸出物件
+	 */
 	public void setPacketOutput(PacketOutput out) {
 		_out = out;
 	}
 
+	/**
+	 * 發送封包給玩家客戶端
+	 * <p>
+	 * 如果輸出物件為null則不執行任何操作。
+	 * 發送過程中的異常會被捕捉並忽略。
+	 * </p>
+	 *
+	 * @param serverbasepacket 要發送的伺服器封包
+	 */
 	public void sendPackets(ServerBasePacket serverbasepacket) {
 		if (_out == null) {
 			return;
@@ -1117,6 +1886,20 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 檢查是否為非PvP狀態
+	 * <p>
+	 * 檢查兩個玩家之間是否可以進行PvP戰鬥。考慮以下因素：
+	 * - 是否在戰鬥區域
+	 * - 是否參與相同的血盟戰爭
+	 * - 是否在戰爭區域且戰爭進行中
+	 * - 伺服器Non-PvP設定
+	 * </p>
+	 *
+	 * @param pc 玩家角色
+	 * @param target 目標角色(可能是玩家、寵物或召喚獸)
+	 * @return 如果不可PvP返回true，可PvP返回false
+	 */
 	public boolean checkNonPvP(L1PcInstance pc, L1Character target) {
 		L1PcInstance targetpc = null;
 		if (target instanceof L1PcInstance) {
@@ -1159,8 +1942,17 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 檢查玩家是否在戰爭區域且戰爭進行中
+	 * <p>
+	 * 檢查兩個玩家是否同時位於相同城堡的戰爭區域，且該城堡正在進行攻城戰
+	 * </p>
+	 *
+	 * @param pc 玩家角色
+	 * @param target 目標玩家
+	 * @return 如果雙方都在戰爭區域且戰爭進行中返回true
+	 */
 	private boolean isInWarAreaAndWarTime(L1PcInstance pc, L1PcInstance target) {
-		// pcとtargetが戦争中に戦争エリアに居るか
 		int castleId = L1CastleLocation.getCastleIdByArea(pc);
 		int targetCastleId = L1CastleLocation.getCastleIdByArea(target);
 		if ((castleId != 0) && (targetCastleId != 0) && (castleId == targetCastleId)) {
@@ -1171,6 +1963,14 @@ public class L1PcInstance extends L1Character {
 		return false;
 	}
 
+	/**
+	 * 設定所有寵物和召喚獸的目標
+	 * <p>
+	 * 將玩家擁有的所有寵物和召喚獸的目標設為指定角色
+	 * </p>
+	 *
+	 * @param target 目標角色
+	 */
 	public void setPetTarget(L1Character target) {
 		Object[] petList = getPetList().values().toArray();
 		for (Object pet : petList) {
@@ -1185,8 +1985,14 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 移除隱身狀態
+	 * <p>
+	 * 移除玩家的隱身(Invisibility)或盲目隱藏(Blind Hiding)狀態，
+	 * 並發送顯形封包給自己和周圍玩家
+	 * </p>
+	 */
 	public void delInvis() {
-		// 魔法接続時間内はこちらを利用
 		if (hasSkillEffect(INVISIBILITY)) { // インビジビリティ
 			killSkillEffectTimer(INVISIBILITY);
 			sendPackets(new S_Invis(getId(), 0));
@@ -1199,14 +2005,30 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 移除盲目隱藏狀態
+	 * <p>
+	 * 當盲目隱藏技能時間結束時呼叫此方法。
+	 * 移除技能效果並發送顯形封包。
+	 * </p>
+	 */
 	public void delBlindHiding() {
-		// 魔法接続時間終了はこちら
 		killSkillEffectTimer(BLIND_HIDING);
 		sendPackets(new S_Invis(getId(), 0));
 		broadcastPacket(new S_OtherCharPacks(this));
 	}
 
-	// 魔法のダメージの場合はここを使用 (ここで魔法ダメージ軽減処理) attr:0.無属性魔法,1.地魔法,2.火魔法,3.水魔法,4.風魔法
+	/**
+	 * 接收魔法傷害
+	 * <p>
+	 * 當玩家受到魔法攻擊時使用此方法。會根據魔法防禦力(MR)進行傷害減免。
+	 * 如果MR檢定成功，傷害減半。
+	 * </p>
+	 *
+	 * @param attacker 攻擊者
+	 * @param damage 原始傷害值
+	 * @param attr 魔法屬性 (0:無屬性, 1:地, 2:火, 3:水, 4:風)
+	 */
 	public void receiveDamage(L1Character attacker, int damage, int attr) {
 		int player_mr = getMr();
 		int rnd = Random.nextInt(100) + 1;
@@ -1216,7 +2038,17 @@ public class L1PcInstance extends L1Character {
 		receiveDamage(attacker, damage, false);
 	}
 
-	public void receiveManaDamage(L1Character attacker, int mpDamage) { // 攻撃でＭＰを減らすときはここを使用
+	/**
+	 * 接收MP傷害
+	 * <p>
+	 * 當玩家受到消耗MP的攻擊時使用此方法。
+	 * 會扣除MP並處理相關的遊戲邏輯(隱身解除、粉紅名稱處理等)。
+	 * </p>
+	 *
+	 * @param attacker 攻擊者
+	 * @param mpDamage MP傷害值
+	 */
+	public void receiveManaDamage(L1Character attacker, int mpDamage) {
 		if ((mpDamage > 0) && !isDead()) {
 			delInvis();
 			if (attacker instanceof L1PcInstance) {
@@ -1244,9 +2076,27 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
-	public double _oldTime = 0; // 連続魔法ダメージの軽減に使用する
+	/** 上次受到魔法傷害的時間，用於連續魔法傷害減免計算 */
+	public double _oldTime = 0;
 
-	public void receiveDamage(L1Character attacker, double damage, boolean isMagicDamage) { // 攻撃でＨＰを減らすときはここを使用
+	/**
+	 * 接收HP傷害
+	 * <p>
+	 * 當玩家受到攻擊而扣除HP時使用此方法。
+	 * 包含以下處理：
+	 * - 連續魔法傷害減免計算
+	 * - 隱身狀態解除
+	 * - 粉紅名稱處理
+	 * - 睡眠之霧解除
+	 * - 死亡之身反擊
+	 * - 裝備特殊效果處理
+	 * </p>
+	 *
+	 * @param attacker 攻擊者
+	 * @param damage 傷害值
+	 * @param isMagicDamage 是否為魔法傷害
+	 */
+	public void receiveDamage(L1Character attacker, double damage, boolean isMagicDamage) {
 		if ((getCurrentHp() > 0) && !isDead()) {
 			if (attacker != this) {
 				if (!(attacker instanceof L1EffectInstance) && !knownsObject(attacker) && (attacker.getMapId() == getMapId())) {
@@ -1362,6 +2212,18 @@ public class L1PcInstance extends L1Character {
 		GeneralThreadPool.getInstance().execute(new Death(lastAttacker));
 	}
 
+	/**
+	 * 死亡處理執行緒
+	 * <p>
+	 * 處理玩家死亡後的所有邏輯，包括：
+	 * - 停止HP/MP回復
+	 * - 解除各種增益狀態
+	 * - 經驗值損失
+	 * - 裝備掉落處理
+	 * - PK計數和正義值變化
+	 * - 血盟戰爭結果處理
+	 * </p>
+	 */
 	private class Death implements Runnable {
 		L1Character _lastAttacker;
 
@@ -1621,6 +2483,12 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 停止玩家刪除計時器
+	 * <p>
+	 * 當玩家復活時，停止刪除計時器
+	 * </p>
+	 */
 	public void stopPcDeleteTimer() {
 		if (_pcDeleteTimer != null) {
 			_pcDeleteTimer.cancel();
@@ -1628,6 +2496,15 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 處理負正義值死亡掉落懲罰
+	 * <p>
+	 * 當玩家正義值為負時死亡，會隨機掉落背包中的物品。
+	 * 掉落數量由正義值決定。
+	 * </p>
+	 *
+	 * @param count 要掉落的物品數量
+	 */
 	private void caoPenaltyResult(int count) {
 		for (int i = 0; i < count; i++) {
 			L1ItemInstance item = getInventory().CaoPenalty();
@@ -1641,6 +2518,16 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 處理攻城戰死亡結果
+	 * <p>
+	 * 檢查玩家是否在攻城戰中死亡：
+	 * - 如果是血盟主且在攻城戰中，則結束戰爭
+	 * - 如果在城堡旗幟範圍內且正在攻城戰中，不給予死亡懲罰
+	 * </p>
+	 *
+	 * @return 如果在攻城戰旗幟範圍內返回true
+	 */
 	public boolean castleWarResult() {
 		if ((getClanid() != 0) && isCrown()) { // クラン所属中プリのチェック
 			L1Clan clan = L1World.getInstance().getClan(getClanname());
@@ -1669,6 +2556,18 @@ public class L1PcInstance extends L1Character {
 		return isNowWar;
 	}
 
+	/**
+	 * 處理模擬戰死亡結果
+	 * <p>
+	 * 檢查玩家是否在模擬戰中死亡：
+	 * - 如果雙方參與同一場模擬戰，不給予死亡懲罰
+	 * - 如果是血盟主，會結束模擬戰
+	 * - 根據設定決定是否給予懲罰
+	 * </p>
+	 *
+	 * @param lastAttacker 最後的攻擊者
+	 * @return 如果在模擬戰中死亡且無懲罰返回true
+	 */
 	public boolean simWarResult(L1Character lastAttacker) {
 		if (getClanid() == 0) { // クラン所属していない
 			return false;
@@ -1718,6 +2617,18 @@ public class L1PcInstance extends L1Character {
 		return false;
 	}
 
+	/**
+	 * 復活時給予經驗值
+	 * <p>
+	 * 使用復活技能或道具時，根據玩家等級給予不同比例的經驗值：
+	 * - 45級以下：下一級所需經驗的5%
+	 * - 45級：4.5%
+	 * - 46級：4%
+	 * - 47級：3.5%
+	 * - 48級：3%
+	 * - 49級以上：2.5%
+	 * </p>
+	 */
 	public void resExp() {
 		int oldLevel = getLevel();
 		int needExp = ExpTable.getNeedExpNextLevel(oldLevel);
@@ -1747,6 +2658,25 @@ public class L1PcInstance extends L1Character {
 		addExp(exp);
 	}
 
+	/**
+	 * 死亡懲罰處理
+	 * <p>
+	 * 根據角色等級計算並扣除死亡時的經驗值懲罰。
+	 * 不同等級範圍有不同的懲罰比例：
+	 * </p>
+	 * <ul>
+	 * <li>1-10級：無懲罰</li>
+	 * <li>11-44級：扣除下一級所需經驗值的10%</li>
+	 * <li>45級：9%</li>
+	 * <li>46級：8%</li>
+	 * <li>47級：7%</li>
+	 * <li>48級：6%</li>
+	 * <li>49級以上：5%</li>
+	 * </ul>
+	 * <p>
+	 * 同時會增加復活經驗值計數器。
+	 * </p>
+	 */
 	public void deathPenalty() {
 		int oldLevel = getLevel();
 		int needExp = ExpTable.getNeedExpNextLevel(oldLevel);
@@ -1783,13 +2713,50 @@ public class L1PcInstance extends L1Character {
 		addExp(-exp);
 	}
 
-	private int _originalEr = 0; // ● オリジナルDEX ER補正
+	/**
+	 * 原始閃避率（ER）修正值
+	 * <p>
+	 * 用於儲存來自裝備或其他來源的額外閃避率加成。
+	 * </p>
+	 */
+	private int _originalEr = 0;
 
+	/**
+	 * 取得原始閃避率修正值
+	 *
+	 * @return 原始閃避率修正值
+	 */
 	public int getOriginalEr() {
 
 		return _originalEr;
 	}
 
+	/**
+	 * 計算並取得角色的總閃避率（ER）
+	 * <p>
+	 * 閃避率由以下因素組成：
+	 * </p>
+	 * <ul>
+	 * <li>職業基礎閃避率（等級除以職業係數）：
+	 *   <ul>
+	 *   <li>騎士：等級/4</li>
+	 *   <li>君主、精靈：等級/8</li>
+	 *   <li>黑暗精靈：等級/6</li>
+	 *   <li>法師：等級/10</li>
+	 *   <li>龍騎士：等級/7</li>
+	 *   <li>幻術師：等級/9</li>
+	 *   </ul>
+	 * </li>
+	 * <li>敏捷加成：(DEX - 8) / 2</li>
+	 * <li>原始閃避率修正（裝備等）</li>
+	 * <li>技能加成（如迴避之舞+12、鐵壁防禦+15）</li>
+	 * </ul>
+	 * <p>
+	 * 注意：擁有「疾風」效果時，閃避率強制為0。
+	 * </p>
+	 *
+	 * @return 總閃避率
+	 */
 	public int getEr() {
 		if (hasSkillEffect(STRIKER_GALE)) {
 			return 0;
@@ -1828,6 +2795,12 @@ public class L1PcInstance extends L1Character {
 		return er;
 	}
 
+	/**
+	 * 根據名稱取得記憶座標
+	 *
+	 * @param name 記憶座標名稱（不區分大小寫）
+	 * @return 找到的記憶座標物件，若不存在則返回 null
+	 */
 	public L1BookMark getBookMark(String name) {
 		for (int i = 0; i < _bookmarks.size(); i++) {
 			L1BookMark element = _bookmarks.get(i);
@@ -1839,6 +2812,12 @@ public class L1PcInstance extends L1Character {
 		return null;
 	}
 
+	/**
+	 * 根據 ID 取得記憶座標
+	 *
+	 * @param id 記憶座標 ID
+	 * @return 找到的記憶座標物件，若不存在則返回 null
+	 */
 	public L1BookMark getBookMark(int id) {
 		for (int i = 0; i < _bookmarks.size(); i++) {
 			L1BookMark element = _bookmarks.get(i);
@@ -1850,117 +2829,293 @@ public class L1PcInstance extends L1Character {
 		return null;
 	}
 
+	/**
+	 * 取得記憶座標的數量
+	 *
+	 * @return 記憶座標數量
+	 */
 	public int getBookMarkSize() {
 		return _bookmarks.size();
 	}
 
+	/**
+	 * 新增記憶座標
+	 *
+	 * @param book 要新增的記憶座標物件
+	 */
 	public void addBookMark(L1BookMark book) {
 		_bookmarks.add(book);
 	}
 
+	/**
+	 * 移除記憶座標
+	 *
+	 * @param book 要移除的記憶座標物件
+	 */
 	public void removeBookMark(L1BookMark book) {
 		_bookmarks.remove(book);
 	}
 
+	/**
+	 * 取得角色目前裝備的武器
+	 *
+	 * @return 武器物品實例，若未裝備武器則可能為 null
+	 */
 	public L1ItemInstance getWeapon() {
 		return _weapon;
 	}
 
+	/**
+	 * 設定角色目前裝備的武器
+	 *
+	 * @param weapon 武器物品實例
+	 */
 	public void setWeapon(L1ItemInstance weapon) {
 		_weapon = weapon;
 	}
 
+	/**
+	 * 取得角色的任務資訊物件
+	 *
+	 * @return 任務資訊物件
+	 */
 	public L1Quest getQuest() {
 		return _quest;
 	}
 
+	/**
+	 * 判斷角色是否為君主職業
+	 *
+	 * @return 若為王子或公主則返回 true，否則返回 false
+	 */
 	public boolean isCrown() {
 		return ((getClassId() == CLASSID_PRINCE) || (getClassId() == CLASSID_PRINCESS));
 	}
 
+	/**
+	 * 判斷角色是否為騎士職業
+	 *
+	 * @return 若為男騎士或女騎士則返回 true，否則返回 false
+	 */
 	public boolean isKnight() {
 		return ((getClassId() == CLASSID_KNIGHT_MALE) || (getClassId() == CLASSID_KNIGHT_FEMALE));
 	}
 
+	/**
+	 * 判斷角色是否為精靈職業
+	 *
+	 * @return 若為男精靈或女精靈則返回 true，否則返回 false
+	 */
 	public boolean isElf() {
 		return ((getClassId() == CLASSID_ELF_MALE) || (getClassId() == CLASSID_ELF_FEMALE));
 	}
 
+	/**
+	 * 判斷角色是否為法師職業
+	 *
+	 * @return 若為男法師或女法師則返回 true，否則返回 false
+	 */
 	public boolean isWizard() {
 		return ((getClassId() == CLASSID_WIZARD_MALE) || (getClassId() == CLASSID_WIZARD_FEMALE));
 	}
 
+	/**
+	 * 判斷角色是否為黑暗精靈職業
+	 *
+	 * @return 若為男黑暗精靈或女黑暗精靈則返回 true，否則返回 false
+	 */
 	public boolean isDarkelf() {
 		return ((getClassId() == CLASSID_DARK_ELF_MALE) || (getClassId() == CLASSID_DARK_ELF_FEMALE));
 	}
 
+	/**
+	 * 判斷角色是否為龍騎士職業
+	 *
+	 * @return 若為男龍騎士或女龍騎士則返回 true，否則返回 false
+	 */
 	public boolean isDragonKnight() {
 		return ((getClassId() == CLASSID_DRAGON_KNIGHT_MALE) || (getClassId() == CLASSID_DRAGON_KNIGHT_FEMALE));
 	}
 
+	/**
+	 * 判斷角色是否為幻術師職業
+	 *
+	 * @return 若為男幻術師或女幻術師則返回 true，否則返回 false
+	 */
 	public boolean isIllusionist() {
 		return ((getClassId() == CLASSID_ILLUSIONIST_MALE) || (getClassId() == CLASSID_ILLUSIONIST_FEMALE));
 	}
 
+	/** 日誌記錄器 */
 	private static Logger _log = Logger.getLogger(L1PcInstance.class.getName());
-	private ClientThread _netConnection;
-	private int _classId;
-	private int _type;
-	private int _exp;
-	private final L1Karma _karma = new L1Karma();
-	private boolean _gm;
-	private boolean _monitor;
-	private boolean _gmInvis;
-	private short _accessLevel;
-	private int _currentWeapon;
-	private final L1PcInventory _inventory;
-	private final L1DwarfInventory _dwarf;
-	private final L1DwarfForElfInventory _dwarfForElf;
-	private final L1Inventory _tradewindow;
-	private L1ItemInstance _weapon;
-	private L1Party _party;
-	private L1ChatParty _chatParty;
-	private int _partyID;
-	private int _tradeID;
-	private boolean _tradeOk;
-	private int _tempID;
-	private boolean _isTeleport = false;
-	private boolean _isDrink = false;
-	private boolean _isGres = false;
-	private boolean _isPinkName = false;
-	private final List<L1BookMark> _bookmarks;
-	private L1Quest _quest;
-	private MpRegeneration _mpRegen;
-	private MpRegenerationByDoll _mpRegenByDoll;
-	private MpReductionByAwake _mpReductionByAwake;
-	private HpRegeneration _hpRegen;
-	private HpRegenerationByDoll _hpRegenByDoll;
-	private ItemMakeByDoll _itemMakeByDoll;
-	private static Timer _regenTimer = new Timer(true);
-	private boolean _mpRegenActive;
-	private boolean _mpRegenActiveByDoll;
-	private boolean _mpReductionActiveByAwake;
-	private boolean _hpRegenActive;
-	private boolean _hpRegenActiveByDoll;
-	private boolean _ItemMakeActiveByDoll;
-	private L1EquipmentSlot _equipSlot;
-	private L1PcDeleteTimer _pcDeleteTimer;
-	private String _accountName; // ● アカウントネーム
 
+	/** 網路連線執行緒 */
+	private ClientThread _netConnection;
+
+	/** 職業 ID */
+	private int _classId;
+
+	/** 角色類型 */
+	private int _type;
+
+	/** 經驗值 */
+	private int _exp;
+
+	/** 業值（善惡值）管理物件 */
+	private final L1Karma _karma = new L1Karma();
+
+	/** 是否為遊戲管理員 */
+	private boolean _gm;
+
+	/** 是否為監控者 */
+	private boolean _monitor;
+
+	/** 是否為 GM 隱身狀態 */
+	private boolean _gmInvis;
+
+	/** 存取權限等級 */
+	private short _accessLevel;
+
+	/** 目前使用的武器類型 */
+	private int _currentWeapon;
+
+	/** 角色背包 */
+	private final L1PcInventory _inventory;
+
+	/** 矮人倉庫 */
+	private final L1DwarfInventory _dwarf;
+
+	/** 精靈專用倉庫 */
+	private final L1DwarfForElfInventory _dwarfForElf;
+
+	/** 交易視窗 */
+	private final L1Inventory _tradewindow;
+
+	/** 裝備的武器實例 */
+	private L1ItemInstance _weapon;
+
+	/** 所屬隊伍 */
+	private L1Party _party;
+
+	/** 所屬聊天隊伍 */
+	private L1ChatParty _chatParty;
+
+	/** 隊伍 ID */
+	private int _partyID;
+
+	/** 交易對象 ID */
+	private int _tradeID;
+
+	/** 交易確認狀態 */
+	private boolean _tradeOk;
+
+	/** 暫存 ID */
+	private int _tempID;
+
+	/** 是否正在傳送中 */
+	private boolean _isTeleport = false;
+
+	/** 是否正在飲用物品 */
+	private boolean _isDrink = false;
+
+	/** 是否擁有復活祝福 */
+	private boolean _isGres = false;
+
+	/** 是否為粉紅名（PK 狀態） */
+	private boolean _isPinkName = false;
+
+	/** 記憶座標清單 */
+	private final List<L1BookMark> _bookmarks;
+
+	/** 任務物件 */
+	private L1Quest _quest;
+
+	/** MP 自然恢復任務 */
+	private MpRegeneration _mpRegen;
+
+	/** 人偶 MP 恢復任務 */
+	private MpRegenerationByDoll _mpRegenByDoll;
+
+	/** 覺醒 MP 消耗任務 */
+	private MpReductionByAwake _mpReductionByAwake;
+
+	/** HP 自然恢復任務 */
+	private HpRegeneration _hpRegen;
+
+	/** 人偶 HP 恢復任務 */
+	private HpRegenerationByDoll _hpRegenByDoll;
+
+	/** 人偶物品製作任務 */
+	private ItemMakeByDoll _itemMakeByDoll;
+
+	/** 恢復計時器（共用） */
+	private static Timer _regenTimer = new Timer(true);
+
+	/** MP 自然恢復是否啟動 */
+	private boolean _mpRegenActive;
+
+	/** 人偶 MP 恢復是否啟動 */
+	private boolean _mpRegenActiveByDoll;
+
+	/** 覺醒 MP 消耗是否啟動 */
+	private boolean _mpReductionActiveByAwake;
+
+	/** HP 自然恢復是否啟動 */
+	private boolean _hpRegenActive;
+
+	/** 人偶 HP 恢復是否啟動 */
+	private boolean _hpRegenActiveByDoll;
+
+	/** 人偶物品製作是否啟動 */
+	private boolean _ItemMakeActiveByDoll;
+
+	/** 裝備欄位管理物件 */
+	private L1EquipmentSlot _equipSlot;
+
+	/** 角色刪除計時器 */
+	private L1PcDeleteTimer _pcDeleteTimer;
+
+	/** 帳號名稱 */
+	private String _accountName;
+
+	/**
+	 * 取得帳號名稱
+	 *
+	 * @return 帳號名稱
+	 */
 	public String getAccountName() {
 		return _accountName;
 	}
 
+	/**
+	 * 設定帳號名稱
+	 *
+	 * @param s 帳號名稱
+	 */
 	public void setAccountName(String s) {
 		_accountName = s;
 	}
 
-	private short _baseMaxHp = 0; // ● ＭＡＸＨＰベース（1～32767）
+	/** 基礎最大 HP 值（範圍：1～32767） */
+	private short _baseMaxHp = 0;
 
+	/**
+	 * 取得基礎最大 HP 值
+	 *
+	 * @return 基礎最大 HP 值
+	 */
 	public short getBaseMaxHp() {
 		return _baseMaxHp;
 	}
 
+	/**
+	 * 增加基礎最大 HP 值
+	 * <p>
+	 * 值會被限制在 1～32767 範圍內。
+	 * </p>
+	 *
+	 * @param i 要增加的 HP 值
+	 */
 	public void addBaseMaxHp(short i) {
 		i += _baseMaxHp;
 		if (i >= 32767) {
@@ -1973,12 +3128,26 @@ public class L1PcInstance extends L1Character {
 		_baseMaxHp = i;
 	}
 
-	private short _baseMaxMp = 0; // ● ＭＡＸＭＰベース（0～32767）
+	/** 基礎最大 MP 值（範圍：0～32767） */
+	private short _baseMaxMp = 0;
 
+	/**
+	 * 取得基礎最大 MP 值
+	 *
+	 * @return 基礎最大 MP 值
+	 */
 	public short getBaseMaxMp() {
 		return _baseMaxMp;
 	}
 
+	/**
+	 * 增加基礎最大 MP 值
+	 * <p>
+	 * 值會被限制在 0～32767 範圍內。
+	 * </p>
+	 *
+	 * @param i 要增加的 MP 值
+	 */
 	public void addBaseMaxMp(short i) {
 		i += _baseMaxMp;
 		if (i >= 32767) {
@@ -1991,25 +3160,51 @@ public class L1PcInstance extends L1Character {
 		_baseMaxMp = i;
 	}
 
-	private int _baseAc = 0; // ● ＡＣベース（-128～127）
+	/** 基礎防禦力（AC）值（範圍：-128～127） */
+	private int _baseAc = 0;
 
+	/**
+	 * 取得基礎防禦力（AC）值
+	 *
+	 * @return 基礎 AC 值
+	 */
 	public int getBaseAc() {
 		return _baseAc;
 	}
 
-	private int _originalAc = 0; // ● オリジナルDEX ＡＣ補正
+	/** 原始敏捷 AC 修正值 */
+	private int _originalAc = 0;
 
+	/**
+	 * 取得原始敏捷 AC 修正值
+	 *
+	 * @return 原始 AC 修正值
+	 */
 	public int getOriginalAc() {
 
 		return _originalAc;
 	}
 
-	private byte _baseStr = 0; // ● ＳＴＲベース（1～127）
+	/** 基礎力量（STR）值（範圍：1～127） */
+	private byte _baseStr = 0;
 
+	/**
+	 * 取得基礎力量值
+	 *
+	 * @return 基礎力量值
+	 */
 	public byte getBaseStr() {
 		return _baseStr;
 	}
 
+	/**
+	 * 增加基礎力量值
+	 * <p>
+	 * 值會被限制在 1～127 範圍內。
+	 * </p>
+	 *
+	 * @param i 要增加的力量值
+	 */
 	public void addBaseStr(byte i) {
 		i += _baseStr;
 		if (i >= 127) {
@@ -2022,12 +3217,26 @@ public class L1PcInstance extends L1Character {
 		_baseStr = i;
 	}
 
-	private byte _baseCon = 0; // ● ＣＯＮベース（1～127）
+	/** 基礎體質（CON）值（範圍：1～127） */
+	private byte _baseCon = 0;
 
+	/**
+	 * 取得基礎體質值
+	 *
+	 * @return 基礎體質值
+	 */
 	public byte getBaseCon() {
 		return _baseCon;
 	}
 
+	/**
+	 * 增加基礎體質值
+	 * <p>
+	 * 值會被限制在 1～127 範圍內。
+	 * </p>
+	 *
+	 * @param i 要增加的體質值
+	 */
 	public void addBaseCon(byte i) {
 		i += _baseCon;
 		if (i >= 127) {
@@ -2040,12 +3249,26 @@ public class L1PcInstance extends L1Character {
 		_baseCon = i;
 	}
 
-	private byte _baseDex = 0; // ● ＤＥＸベース（1～127）
+	/** 基礎敏捷（DEX）值（範圍：1～127） */
+	private byte _baseDex = 0;
 
+	/**
+	 * 取得基礎敏捷值
+	 *
+	 * @return 基礎敏捷值
+	 */
 	public byte getBaseDex() {
 		return _baseDex;
 	}
 
+	/**
+	 * 增加基礎敏捷值
+	 * <p>
+	 * 值會被限制在 1～127 範圍內。
+	 * </p>
+	 *
+	 * @param i 要增加的敏捷值
+	 */
 	public void addBaseDex(byte i) {
 		i += _baseDex;
 		if (i >= 127) {
@@ -2058,12 +3281,26 @@ public class L1PcInstance extends L1Character {
 		_baseDex = i;
 	}
 
-	private byte _baseCha = 0; // ● ＣＨＡベース（1～127）
+	/** 基礎魅力（CHA）值（範圍：1～127） */
+	private byte _baseCha = 0;
 
+	/**
+	 * 取得基礎魅力值
+	 *
+	 * @return 基礎魅力值
+	 */
 	public byte getBaseCha() {
 		return _baseCha;
 	}
 
+	/**
+	 * 增加基礎魅力值
+	 * <p>
+	 * 值會被限制在 1～127 範圍內。
+	 * </p>
+	 *
+	 * @param i 要增加的魅力值
+	 */
 	public void addBaseCha(byte i) {
 		i += _baseCha;
 		if (i >= 127) {
@@ -2076,12 +3313,26 @@ public class L1PcInstance extends L1Character {
 		_baseCha = i;
 	}
 
-	private byte _baseInt = 0; // ● ＩＮＴベース（1～127）
+	/** 基礎智力（INT）值（範圍：1～127） */
+	private byte _baseInt = 0;
 
+	/**
+	 * 取得基礎智力值
+	 *
+	 * @return 基礎智力值
+	 */
 	public byte getBaseInt() {
 		return _baseInt;
 	}
 
+	/**
+	 * 增加基礎智力值
+	 * <p>
+	 * 值會被限制在 1～127 範圍內。
+	 * </p>
+	 *
+	 * @param i 要增加的智力值
+	 */
 	public void addBaseInt(byte i) {
 		i += _baseInt;
 		if (i >= 127) {
@@ -2094,12 +3345,26 @@ public class L1PcInstance extends L1Character {
 		_baseInt = i;
 	}
 
-	private byte _baseWis = 0; // ● ＷＩＳベース（1～127）
+	/** 基礎智慧（WIS）值（範圍：1～127） */
+	private byte _baseWis = 0;
 
+	/**
+	 * 取得基礎智慧值
+	 *
+	 * @return 基礎智慧值
+	 */
 	public byte getBaseWis() {
 		return _baseWis;
 	}
 
+	/**
+	 * 增加基礎智慧值
+	 * <p>
+	 * 值會被限制在 1～127 範圍內。
+	 * </p>
+	 *
+	 * @param i 要增加的智慧值
+	 */
 	public void addBaseWis(byte i) {
 		i += _baseWis;
 		if (i >= 127) {
@@ -2112,354 +3377,718 @@ public class L1PcInstance extends L1Character {
 		_baseWis = i;
 	}
 
-	private int _originalStr = 0; // ● オリジナル STR
+	/** 原始力量值（來自裝備等） */
+	private int _originalStr = 0;
 
+	/**
+	 * 取得原始力量值
+	 *
+	 * @return 原始力量值
+	 */
 	public int getOriginalStr() {
 		return _originalStr;
 	}
 
+	/**
+	 * 設定原始力量值
+	 *
+	 * @param i 力量值
+	 */
 	public void setOriginalStr(int i) {
 		_originalStr = i;
 	}
 
-	private int _originalCon = 0; // ● オリジナル CON
+	/** 原始體質值（來自裝備等） */
+	private int _originalCon = 0;
 
+	/**
+	 * 取得原始體質值
+	 *
+	 * @return 原始體質值
+	 */
 	public int getOriginalCon() {
 		return _originalCon;
 	}
 
+	/**
+	 * 設定原始體質值
+	 *
+	 * @param i 體質值
+	 */
 	public void setOriginalCon(int i) {
 		_originalCon = i;
 	}
 
-	private int _originalDex = 0; // ● オリジナル DEX
+	/** 原始敏捷值（來自裝備等） */
+	private int _originalDex = 0;
 
+	/**
+	 * 取得原始敏捷值
+	 *
+	 * @return 原始敏捷值
+	 */
 	public int getOriginalDex() {
 		return _originalDex;
 	}
 
+	/**
+	 * 設定原始敏捷值
+	 *
+	 * @param i 敏捷值
+	 */
 	public void setOriginalDex(int i) {
 		_originalDex = i;
 	}
 
-	private int _originalCha = 0; // ● オリジナル CHA
+	/** 原始魅力值（來自裝備等） */
+	private int _originalCha = 0;
 
+	/**
+	 * 取得原始魅力值
+	 *
+	 * @return 原始魅力值
+	 */
 	public int getOriginalCha() {
 		return _originalCha;
 	}
 
+	/**
+	 * 設定原始魅力值
+	 *
+	 * @param i 魅力值
+	 */
 	public void setOriginalCha(int i) {
 		_originalCha = i;
 	}
 
-	private int _originalInt = 0; // ● オリジナル INT
+	/** 原始智力值（來自裝備等） */
+	private int _originalInt = 0;
 
+	/**
+	 * 取得原始智力值
+	 *
+	 * @return 原始智力值
+	 */
 	public int getOriginalInt() {
 		return _originalInt;
 	}
 
+	/**
+	 * 設定原始智力值
+	 *
+	 * @param i 智力值
+	 */
 	public void setOriginalInt(int i) {
 		_originalInt = i;
 	}
 
-	private int _originalWis = 0; // ● オリジナル WIS
+	/** 原始智慧值（來自裝備等） */
+	private int _originalWis = 0;
 
+	/**
+	 * 取得原始智慧值
+	 *
+	 * @return 原始智慧值
+	 */
 	public int getOriginalWis() {
 		return _originalWis;
 	}
 
+	/**
+	 * 設定原始智慧值
+	 *
+	 * @param i 智慧值
+	 */
 	public void setOriginalWis(int i) {
 		_originalWis = i;
 	}
 
-	private int _originalDmgup = 0; // ● オリジナルSTR ダメージ補正
+	/** 原始力量傷害加成（來自裝備等） */
+	private int _originalDmgup = 0;
 
+	/**
+	 * 取得原始力量傷害加成
+	 *
+	 * @return 原始傷害加成值
+	 */
 	public int getOriginalDmgup() {
 
 		return _originalDmgup;
 	}
 
-	private int _originalBowDmgup = 0; // ● オリジナルDEX 弓ダメージ補正
+	/** 原始敏捷弓箭傷害加成（來自裝備等） */
+	private int _originalBowDmgup = 0;
 
+	/**
+	 * 取得原始弓箭傷害加成
+	 *
+	 * @return 原始弓箭傷害加成值
+	 */
 	public int getOriginalBowDmgup() {
 
 		return _originalBowDmgup;
 	}
 
-	private int _originalHitup = 0; // ● オリジナルSTR 命中補正
+	/** 原始力量命中加成（來自裝備等） */
+	private int _originalHitup = 0;
 
+	/**
+	 * 取得原始命中加成
+	 *
+	 * @return 原始命中加成值
+	 */
 	public int getOriginalHitup() {
 
 		return _originalHitup;
 	}
 
-	private int _originalBowHitup = 0; // ● オリジナルDEX 命中補正
+	/** 原始敏捷弓箭命中加成（來自裝備等） */
+	private int _originalBowHitup = 0;
 
+	/**
+	 * 取得原始弓箭命中加成
+	 *
+	 * @return 原始弓箭命中加成值
+	 */
 	public int getOriginalBowHitup() {
 
 		return _originalBowHitup;
 	}
 
-	private int _originalMr = 0; // ● オリジナルWIS 魔法防御
+	/** 原始智慧魔法防禦加成（來自裝備等） */
+	private int _originalMr = 0;
 
+	/**
+	 * 取得原始魔法防禦加成
+	 *
+	 * @return 原始魔法防禦值
+	 */
 	public int getOriginalMr() {
 
 		return _originalMr;
 	}
 
-	private int _originalMagicHit = 0; // ● オリジナルINT 魔法命中
+	/** 原始智力魔法命中加成（來自裝備等） */
+	private int _originalMagicHit = 0;
 
+	/**
+	 * 取得原始魔法命中加成
+	 *
+	 * @return 原始魔法命中值
+	 */
 	public int getOriginalMagicHit() {
 
 		return _originalMagicHit;
 	}
 
-	private int _originalMagicCritical = 0; // ● オリジナルINT 魔法クリティカル
+	/** 原始智力魔法爆擊加成（來自裝備等） */
+	private int _originalMagicCritical = 0;
 
+	/**
+	 * 取得原始魔法爆擊加成
+	 *
+	 * @return 原始魔法爆擊值
+	 */
 	public int getOriginalMagicCritical() {
 
 		return _originalMagicCritical;
 	}
 
-	private int _originalMagicConsumeReduction = 0; // ● オリジナルINT 消費MP軽減
+	/** 原始智力 MP 消耗減少（來自裝備等） */
+	private int _originalMagicConsumeReduction = 0;
 
+	/**
+	 * 取得原始 MP 消耗減少值
+	 *
+	 * @return 原始 MP 消耗減少值
+	 */
 	public int getOriginalMagicConsumeReduction() {
 
 		return _originalMagicConsumeReduction;
 	}
 
-	private int _originalMagicDamage = 0; // ● オリジナルINT 魔法ダメージ
+	/** 原始智力魔法傷害加成（來自裝備等） */
+	private int _originalMagicDamage = 0;
 
+	/**
+	 * 取得原始魔法傷害加成
+	 *
+	 * @return 原始魔法傷害值
+	 */
 	public int getOriginalMagicDamage() {
 
 		return _originalMagicDamage;
 	}
 
-	private int _originalHpup = 0; // ● オリジナルCON HP上昇値補正
+	/** 原始體質 HP 上升值加成（來自裝備等） */
+	private int _originalHpup = 0;
 
+	/**
+	 * 取得原始 HP 上升值加成
+	 *
+	 * @return 原始 HP 上升值
+	 */
 	public int getOriginalHpup() {
 
 		return _originalHpup;
 	}
 
-	private int _originalMpup = 0; // ● オリジナルWIS MP上昇値補正
+	/** 原始智慧 MP 上升值加成（來自裝備等） */
+	private int _originalMpup = 0;
 
+	/**
+	 * 取得原始 MP 上升值加成
+	 *
+	 * @return 原始 MP 上升值
+	 */
 	public int getOriginalMpup() {
 
 		return _originalMpup;
 	}
 
-	private int _baseDmgup = 0; // ● ダメージ補正ベース（-128～127）
+	/** 基礎傷害加成值（範圍：-128～127） */
+	private int _baseDmgup = 0;
 
+	/**
+	 * 取得基礎傷害加成值
+	 *
+	 * @return 基礎傷害加成值
+	 */
 	public int getBaseDmgup() {
 		return _baseDmgup;
 	}
 
-	private int _baseBowDmgup = 0; // ● 弓ダメージ補正ベース（-128～127）
+	/** 基礎弓箭傷害加成值（範圍：-128～127） */
+	private int _baseBowDmgup = 0;
 
+	/**
+	 * 取得基礎弓箭傷害加成值
+	 *
+	 * @return 基礎弓箭傷害加成值
+	 */
 	public int getBaseBowDmgup() {
 		return _baseBowDmgup;
 	}
 
-	private int _baseHitup = 0; // ● 命中補正ベース（-128～127）
+	/** 基礎命中加成值（範圍：-128～127） */
+	private int _baseHitup = 0;
 
+	/**
+	 * 取得基礎命中加成值
+	 *
+	 * @return 基礎命中加成值
+	 */
 	public int getBaseHitup() {
 		return _baseHitup;
 	}
 
-	private int _baseBowHitup = 0; // ● 弓命中補正ベース（-128～127）
+	/** 基礎弓箭命中加成值（範圍：-128～127） */
+	private int _baseBowHitup = 0;
 
+	/**
+	 * 取得基礎弓箭命中加成值
+	 *
+	 * @return 基礎弓箭命中加成值
+	 */
 	public int getBaseBowHitup() {
 		return _baseBowHitup;
 	}
 
-	private int _baseMr = 0; // ● 魔法防御ベース（0～）
+	/** 基礎魔法防禦值（範圍：0～） */
+	private int _baseMr = 0;
 
+	/**
+	 * 取得基礎魔法防禦值
+	 *
+	 * @return 基礎魔法防禦值
+	 */
 	public int getBaseMr() {
 		return _baseMr;
 	}
 
-	private int _advenHp; // ● // アドバンスド スピリッツで増加しているＨＰ
+	/** 透過進階精靈增加的 HP 值 */
+	private int _advenHp;
 
+	/**
+	 * 取得進階精靈增加的 HP 值
+	 *
+	 * @return 增加的 HP 值
+	 */
 	public int getAdvenHp() {
 		return _advenHp;
 	}
 
+	/**
+	 * 設定進階精靈增加的 HP 值
+	 *
+	 * @param i HP 值
+	 */
 	public void setAdvenHp(int i) {
 		_advenHp = i;
 	}
 
-	private int _advenMp; // ● // アドバンスド スピリッツで増加しているＭＰ
+	/** 透過進階精靈增加的 MP 值 */
+	private int _advenMp;
 
+	/**
+	 * 取得進階精靈增加的 MP 值
+	 *
+	 * @return 增加的 MP 值
+	 */
 	public int getAdvenMp() {
 		return _advenMp;
 	}
 
+	/**
+	 * 設定進階精靈增加的 MP 值
+	 *
+	 * @param i MP 值
+	 */
 	public void setAdvenMp(int i) {
 		_advenMp = i;
 	}
 
-	private int _highLevel; // ● 過去最高レベル
+	/** 過去最高等級 */
+	private int _highLevel;
 
+	/**
+	 * 取得過去最高等級
+	 *
+	 * @return 最高等級
+	 */
 	public int getHighLevel() {
 		return _highLevel;
 	}
 
+	/**
+	 * 設定過去最高等級
+	 *
+	 * @param i 等級值
+	 */
 	public void setHighLevel(int i) {
 		_highLevel = i;
 	}
 
-	private int _bonusStats; // ● 割り振ったボーナスステータス
+	/** 已分配的額外能力值點數 */
+	private int _bonusStats;
 
+	/**
+	 * 取得已分配的額外能力值點數
+	 *
+	 * @return 額外能力值點數
+	 */
 	public int getBonusStats() {
 		return _bonusStats;
 	}
 
+	/**
+	 * 設定已分配的額外能力值點數
+	 *
+	 * @param i 額外能力值點數
+	 */
 	public void setBonusStats(int i) {
 		_bonusStats = i;
 	}
 
-	private int _elixirStats; // ● エリクサーで上がったステータス
+	/** 透過煉藥提升的能力值點數 */
+	private int _elixirStats;
 
+	/**
+	 * 取得透過煉藥提升的能力值點數
+	 *
+	 * @return 煉藥能力值點數
+	 */
 	public int getElixirStats() {
 		return _elixirStats;
 	}
 
+	/**
+	 * 設定透過煉藥提升的能力值點數
+	 *
+	 * @param i 煉藥能力值點數
+	 */
 	public void setElixirStats(int i) {
 		_elixirStats = i;
 	}
 
-	private int _elfAttr; // ● エルフの属性
+	/** 精靈的屬性類型 */
+	private int _elfAttr;
 
+	/**
+	 * 取得精靈的屬性類型
+	 *
+	 * @return 屬性類型值
+	 */
 	public int getElfAttr() {
 		return _elfAttr;
 	}
 
+	/**
+	 * 設定精靈的屬性類型
+	 *
+	 * @param i 屬性類型值
+	 */
 	public void setElfAttr(int i) {
 		_elfAttr = i;
 	}
 
-	private int _expRes; // ● EXP復旧
+	/** 經驗值復活補償計數 */
+	private int _expRes;
 
+	/**
+	 * 取得經驗值復活補償計數
+	 *
+	 * @return 復活補償計數
+	 */
 	public int getExpRes() {
 		return _expRes;
 	}
 
+	/**
+	 * 設定經驗值復活補償計數
+	 *
+	 * @param i 復活補償計數
+	 */
 	public void setExpRes(int i) {
 		_expRes = i;
 	}
 
-	private int _partnerId; // ● 結婚相手
+	/** 結婚對象的角色 ID */
+	private int _partnerId;
 
+	/**
+	 * 取得結婚對象的角色 ID
+	 *
+	 * @return 結婚對象 ID
+	 */
 	public int getPartnerId() {
 		return _partnerId;
 	}
 
+	/**
+	 * 設定結婚對象的角色 ID
+	 *
+	 * @param i 結婚對象 ID
+	 */
 	public void setPartnerId(int i) {
 		_partnerId = i;
 	}
 
-	private int _onlineStatus; // ● オンライン状態
+	/** 線上狀態 */
+	private int _onlineStatus;
 
+	/**
+	 * 取得線上狀態
+	 *
+	 * @return 線上狀態值
+	 */
 	public int getOnlineStatus() {
 		return _onlineStatus;
 	}
 
+	/**
+	 * 設定線上狀態
+	 *
+	 * @param i 線上狀態值
+	 */
 	public void setOnlineStatus(int i) {
 		_onlineStatus = i;
 	}
 
-	private int _homeTownId; // ● ホームタウン
+	/** 所屬村莊 ID */
+	private int _homeTownId;
 
+	/**
+	 * 取得所屬村莊 ID
+	 *
+	 * @return 村莊 ID
+	 */
 	public int getHomeTownId() {
 		return _homeTownId;
 	}
 
+	/**
+	 * 設定所屬村莊 ID
+	 *
+	 * @param i 村莊 ID
+	 */
 	public void setHomeTownId(int i) {
 		_homeTownId = i;
 	}
 
-	private int _contribution; // ● 貢献度
+	/** 村莊貢獻度 */
+	private int _contribution;
 
+	/**
+	 * 取得村莊貢獻度
+	 *
+	 * @return 貢獻度值
+	 */
 	public int getContribution() {
 		return _contribution;
 	}
 
+	/**
+	 * 設定村莊貢獻度
+	 *
+	 * @param i 貢獻度值
+	 */
 	public void setContribution(int i) {
 		_contribution = i;
 	}
 
-	private int _pay; // 村莊福利金 此欄位由 HomeTownTimeController 處理 update
+	/** 村莊福利金（由 HomeTownTimeController 處理更新） */
+	private int _pay;
 
+	/**
+	 * 取得村莊福利金
+	 *
+	 * @return 福利金金額
+	 */
 	public int getPay() {
 		return _pay;
 	}
 
+	/**
+	 * 設定村莊福利金
+	 *
+	 * @param i 福利金金額
+	 */
 	public void setPay(int i) {
 		_pay = i;
 	}
 
-	// 地獄に滞在する時間（秒）
+	/** 在地獄中停留的時間（秒） */
 	private int _hellTime;
 
+	/**
+	 * 取得在地獄中停留的時間
+	 *
+	 * @return 停留時間（秒）
+	 */
 	public int getHellTime() {
 		return _hellTime;
 	}
 
+	/**
+	 * 設定在地獄中停留的時間
+	 *
+	 * @param i 停留時間（秒）
+	 */
 	public void setHellTime(int i) {
 		_hellTime = i;
 	}
 
-	private boolean _banned; // ● 凍結
+	/** 帳號是否被凍結 */
+	private boolean _banned;
 
+	/**
+	 * 檢查帳號是否被凍結
+	 *
+	 * @return 若帳號被凍結則返回 true
+	 */
 	public boolean isBanned() {
 		return _banned;
 	}
 
+	/**
+	 * 設定帳號凍結狀態
+	 *
+	 * @param flag 凍結狀態
+	 */
 	public void setBanned(boolean flag) {
 		_banned = flag;
 	}
 
+	/**
+	 * 取得裝備欄位管理物件
+	 *
+	 * @return 裝備欄位管理物件
+	 */
 	public L1EquipmentSlot getEquipSlot() {
 		return _equipSlot;
 	}
-	
+
+	/**
+	 * 設定飽食度
+	 * <p>
+	 * 覆寫父類別方法以同時更新「生存吶喊」技能的充電時間。
+	 * </p>
+	 *
+	 * @param i 飽食度值
+	 */
 	@Override
 	public void set_food(int i) {
 		super.set_food(i);
 		setCryOfSurvivalTime();
 	}
-	
-	// 生存吶喊 飽食度 100% 充電時間
+
+	/** 生存吶喊技能飽食度 100% 充電時間（Unix 時間戳） */
 	private long _cryofsurvivaltime;
 
+	/**
+	 * 取得生存吶喊技能的充電時間
+	 *
+	 * @return 充電時間（Unix 時間戳）
+	 */
 	public long getCryOfSurvivalTime() {
 		return _cryofsurvivaltime;
 	}
 
+	/**
+	 * 更新生存吶喊技能的充電時間
+	 * <p>
+	 * 當飽食度達到 225（100%）時，記錄當前時間作為充電起始點。
+	 * </p>
+	 */
 	public void setCryOfSurvivalTime() {
 		if (get_food() >= 225) {
 			_cryofsurvivaltime = System.currentTimeMillis() / 1000;
 		}
 	}
-	
-	// 殺怪數紀錄
+
+	/** 擊殺怪物數量統計 */
 	private int _monskill = 0;
-	
+
+	/**
+	 * 取得擊殺怪物數量
+	 *
+	 * @return 擊殺數量
+	 */
 	public int getMonsKill(){
 		return _monskill;
 	}
-	
+
+	/**
+	 * 設定擊殺怪物數量
+	 * <p>
+	 * 設定後會立即更新客戶端顯示。
+	 * </p>
+	 *
+	 * @param i 擊殺數量
+	 */
 	public void setMonsKill(int i){
 		_monskill = i;
 		sendPackets(new S_OwnCharStatus(this));
 	}
-	
+
+	/**
+	 * 增加擊殺怪物數量
+	 * <p>
+	 * 每次呼叫增加 1，並立即更新客戶端顯示。
+	 * </p>
+	 */
 	public void addMonsKill(){
 		_monskill += 1;
 		sendPackets(new S_OwnCharStatus(this));
 	}
 
+	/**
+	 * 從資料庫載入指定名稱的角色
+	 *
+	 * @param charName 角色名稱
+	 * @return 載入的角色實例，若發生錯誤則返回 null
+	 */
 	public static L1PcInstance load(String charName) {
 		L1PcInstance result = null;
 		try {
@@ -2472,9 +4101,12 @@ public class L1PcInstance extends L1Character {
 	}
 
 	/**
-	 * このプレイヤーの状態をストレージへ書き込む。
-	 * 
-	 * @throws Exception
+	 * 將此角色的狀態儲存到資料庫
+	 * <p>
+	 * 如果角色處於幽靈狀態或正在重置中，則不執行儲存。
+	 * </p>
+	 *
+	 * @throws Exception 儲存過程中發生的異常
 	 */
 	public void save() throws Exception {
 		if (isGhost()) {
@@ -2488,7 +4120,10 @@ public class L1PcInstance extends L1Character {
 	}
 
 	/**
-	 * このプレイヤーのインベントリアイテムの状態をストレージへ書き込む。
+	 * 將此角色背包中所有物品的狀態儲存到資料庫
+	 * <p>
+	 * 遍歷背包中的所有物品，逐一儲存物品資料及附魔飾品資料。
+	 * </p>
 	 */
 	public void saveInventory() {
 		for (L1ItemInstance item : getInventory().getItems()) {
@@ -2497,17 +4132,44 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/** 恢復狀態：無動作 */
 	public static final int REGENSTATE_NONE = 4;
 
+	/** 恢復狀態：移動中 */
 	public static final int REGENSTATE_MOVE = 2;
 
+	/** 恢復狀態：攻擊中 */
 	public static final int REGENSTATE_ATTACK = 1;
 
+	/**
+	 * 設定 HP/MP 恢復狀態
+	 * <p>
+	 * 根據角色行為（無動作、移動、攻擊）調整 HP 和 MP 的恢復速度。
+	 * </p>
+	 *
+	 * @param state 恢復狀態常數（REGENSTATE_NONE、REGENSTATE_MOVE、REGENSTATE_ATTACK）
+	 */
 	public void setRegenState(int state) {
 		_mpRegen.setState(state);
 		_hpRegen.setState(state);
 	}
 
+	/**
+	 * 計算角色的最大負重
+	 * <p>
+	 * 最大負重由以下因素決定：
+	 * </p>
+	 * <ul>
+	 * <li>基礎負重：150 × floor(0.6×STR + 0.4×CON + 1)</li>
+	 * <li>防具重量減免加成</li>
+	 * <li>魔法人偶重量減免加成</li>
+	 * <li>魔法效果（減重術）：+180</li>
+	 * <li>原始能力值重量減免：0.04 × (STR減免 + CON減免)</li>
+	 * <li>伺服器負重倍率（Config.RATE_WEIGHT_LIMIT）</li>
+	 * </ul>
+	 *
+	 * @return 最大負重值
+	 */
 	public double getMaxWeight() {
 		int str = getStr();
 		int con = getCon();
@@ -2540,39 +4202,93 @@ public class L1PcInstance extends L1Character {
 		return maxWeight;
 	}
 
-	public boolean isRibrave() { // 生命之樹果實 移速 * 1.15
+	/**
+	 * 檢查是否擁有生命之樹果實效果
+	 * <p>
+	 * 生命之樹果實效果會使移動速度提升 15%（×1.15）。
+	 * </p>
+	 *
+	 * @return 若擁有效果則返回 true
+	 */
+	public boolean isRibrave() {
 		return hasSkillEffect(STATUS_RIBRAVE);
 	}
 
-	public boolean isThirdSpeed() { // 三段加速 * 1.15
+	/**
+	 * 檢查是否擁有三段加速效果
+	 * <p>
+	 * 三段加速效果會使移動速度提升 15%（×1.15）。
+	 * </p>
+	 *
+	 * @return 若擁有效果則返回 true
+	 */
+	public boolean isThirdSpeed() {
 		return hasSkillEffect(STATUS_THIRD_SPEED);
 	}
 
-	public boolean isWindShackle() { // 風之枷鎖  攻速 / 2
+	/**
+	 * 檢查是否擁有風之枷鎖效果
+	 * <p>
+	 * 風之枷鎖效果會使攻擊速度減半（÷2）。
+	 * </p>
+	 *
+	 * @return 若擁有效果則返回 true
+	 */
+	public boolean isWindShackle() {
 		return hasSkillEffect(WIND_SHACKLE);
 	}
 
+	/** 隱身延遲計數器 */
 	private int invisDelayCounter = 0;
 
+	/**
+	 * 檢查是否處於隱身延遲狀態
+	 * <p>
+	 * 隱身延遲期間無法再次進入隱身狀態。
+	 * </p>
+	 *
+	 * @return 若處於延遲狀態則返回 true
+	 */
 	public boolean isInvisDelay() {
 		return (invisDelayCounter > 0);
 	}
 
+	/** 隱身計時器同步鎖 */
 	private Object _invisTimerMonitor = new Object();
 
+	/**
+	 * 增加隱身延遲計數器
+	 *
+	 * @param counter 要增加的計數值
+	 */
 	public void addInvisDelayCounter(int counter) {
 		synchronized (_invisTimerMonitor) {
 			invisDelayCounter += counter;
 		}
 	}
 
+	/** 隱身延遲時間（毫秒） */
 	private static final long DELAY_INVIS = 3000L;
 
+	/**
+	 * 開始隱身延遲計時器
+	 * <p>
+	 * 在隱身後會啟動 3 秒的延遲計時器，期間無法再次進入隱身。
+	 * </p>
+	 */
 	public void beginInvisTimer() {
 		addInvisDelayCounter(1);
 		GeneralThreadPool.getInstance().pcSchedule(new L1PcInvisDelay(getId()), DELAY_INVIS);
 	}
 
+	/**
+	 * 增加經驗值
+	 * <p>
+	 * 同步方法，確保多執行緒安全。經驗值不會超過最大值（ExpTable.MAX_EXP）。
+	 * </p>
+	 *
+	 * @param exp 要增加的經驗值（可為負數以扣除經驗值）
+	 */
 	public synchronized void addExp(int exp) {
 		_exp += exp;
 		if (_exp > ExpTable.MAX_EXP) {
@@ -2580,14 +4296,46 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 增加村莊貢獻度
+	 * <p>
+	 * 同步方法，確保多執行緒安全。
+	 * </p>
+	 *
+	 * @param contribution 要增加的貢獻度
+	 */
 	public synchronized void addContribution(int contribution) {
 		_contribution += contribution;
 	}
 
+	/**
+	 * 開始經驗值監控器
+	 * <p>
+	 * 定期檢查角色經驗值並處理升級。
+	 * </p>
+	 */
 	public void beginExpMonitor() {
 		_expMonitorFuture = GeneralThreadPool.getInstance().pcScheduleAtFixedRate(new L1PcExpMonitor(getId()), 0L, INTERVAL_EXP_MONITOR);
 	}
 
+	/**
+	 * 角色升級處理
+	 * <p>
+	 * 處理角色升級時的各項變更，包括：
+	 * </p>
+	 * <ul>
+	 * <li>重置等級相關數值</li>
+	 * <li>增加 HP/MP 上限（根據職業和能力值隨機計算）</li>
+	 * <li>重置基礎命中、傷害、AC、MR 等數值</li>
+	 * <li>更新歷史最高等級</li>
+	 * <li>99 級時獲得復活藥水（若伺服器啟用此功能）</li>
+	 * <li>51 級以上可獲得額外能力值點數（Bonus Stats）</li>
+	 * <li>檢查地圖限制並自動傳送</li>
+	 * <li>更新新手保護狀態</li>
+	 * </ul>
+	 *
+	 * @param gap 升級的等級數量
+	 */
 	private void levelUp(int gap) {
 		resetLevel();
 
@@ -2658,6 +4406,25 @@ public class L1PcInstance extends L1Character {
 		checkNoviceType();
 	}
 
+	/**
+	 * 角色降級處理
+	 * <p>
+	 * 處理角色降級時的各項變更，包括：
+	 * </p>
+	 * <ul>
+	 * <li>重置等級相關數值</li>
+	 * <li>減少 HP/MP 上限（根據職業和能力值隨機計算）</li>
+	 * <li>重置基礎命中、傷害、AC、MR 等數值</li>
+	 * <li>檢查降級範圍限制，超過則強制斷線</li>
+	 * <li>更新新手保護狀態</li>
+	 * </ul>
+	 * <p>
+	 * 注意：若設定了 LEVEL_DOWN_RANGE，當前等級與歷史最高等級相差超過此範圍時，
+	 * 角色會被強制斷線以防止異常降級。
+	 * </p>
+	 *
+	 * @param gap 降級的等級數量（負數）
+	 */
 	private void levelDown(int gap) {
 		resetLevel();
 
@@ -2693,44 +4460,106 @@ public class L1PcInstance extends L1Character {
 		checkNoviceType();
 	}
 
+	/**
+	 * 開始遊戲時間傳遞器
+	 * <p>
+	 * 啟動一個執行緒，定期向客戶端同步遊戲內的時間資訊。
+	 * </p>
+	 */
 	public void beginGameTimeCarrier() {
 		new L1GameTimeCarrier(this).start();
 	}
 
-	private boolean _ghost = false; // ゴースト
+	/** 是否處於幽靈狀態（觀察者模式） */
+	private boolean _ghost = false;
 
+	/**
+	 * 檢查是否處於幽靈狀態
+	 * <p>
+	 * 幽靈狀態下的角色無法進行正常遊戲互動，通常用於觀察模式或特殊事件。
+	 * </p>
+	 *
+	 * @return 若處於幽靈狀態則返回 true
+	 */
 	public boolean isGhost() {
 		return _ghost;
 	}
 
+	/**
+	 * 設定幽靈狀態
+	 *
+	 * @param flag 幽靈狀態
+	 */
 	private void setGhost(boolean flag) {
 		_ghost = flag;
 	}
 
-	private boolean _ghostCanTalk = true; // NPCに話しかけられるか
+	/** 幽靈狀態下是否可與 NPC 對話 */
+	private boolean _ghostCanTalk = true;
 
+	/**
+	 * 檢查幽靈狀態下是否可與 NPC 對話
+	 *
+	 * @return 若可對話則返回 true
+	 */
 	public boolean isGhostCanTalk() {
 		return _ghostCanTalk;
 	}
 
+	/**
+	 * 設定幽靈狀態下是否可與 NPC 對話
+	 *
+	 * @param flag 對話權限
+	 */
 	private void setGhostCanTalk(boolean flag) {
 		_ghostCanTalk = flag;
 	}
 
-	private boolean _isReserveGhost = false; // ゴースト解除準備
+	/** 是否準備解除幽靈狀態 */
+	private boolean _isReserveGhost = false;
 
+	/**
+	 * 檢查是否準備解除幽靈狀態
+	 *
+	 * @return 若準備解除則返回 true
+	 */
 	public boolean isReserveGhost() {
 		return _isReserveGhost;
 	}
 
+	/**
+	 * 設定是否準備解除幽靈狀態
+	 *
+	 * @param flag 準備狀態
+	 */
 	private void setReserveGhost(boolean flag) {
 		_isReserveGhost = flag;
 	}
 
+	/**
+	 * 開始幽靈狀態（無時間限制）
+	 *
+	 * @param locx 目標 X 座標
+	 * @param locy 目標 Y 座標
+	 * @param mapid 目標地圖 ID
+	 * @param canTalk 是否可與 NPC 對話
+	 */
 	public void beginGhost(int locx, int locy, short mapid, boolean canTalk) {
 		beginGhost(locx, locy, mapid, canTalk, 0);
 	}
 
+	/**
+	 * 開始幽靈狀態
+	 * <p>
+	 * 將角色傳送到指定位置並進入幽靈狀態。會記錄原本的位置以便之後返回。
+	 * </p>
+	 *
+	 * @param locx 目標 X 座標
+	 * @param locy 目標 Y 座標
+	 * @param mapid 目標地圖 ID
+	 * @param canTalk 是否可與 NPC 對話
+	 * @param sec 幽靈狀態持續時間（秒），0 表示無時間限制
+	 */
 	public void beginGhost(int locx, int locy, short mapid, boolean canTalk, int sec) {
 		if (isGhost()) {
 			return;
@@ -2747,29 +4576,60 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 準備結束幽靈狀態
+	 * <p>
+	 * 將角色傳送回進入幽靈狀態前的原始位置，並標記為準備解除狀態。
+	 * </p>
+	 */
 	public void makeReadyEndGhost() {
 		setReserveGhost(true);
 		L1Teleport.teleport(this, _ghostSaveLocX, _ghostSaveLocY, _ghostSaveMapId, _ghostSaveHeading, true);
 	}
 
+	/**
+	 * 結束幽靈狀態
+	 * <p>
+	 * 清除幽靈狀態標記，恢復正常遊戲狀態。
+	 * </p>
+	 */
 	public void endGhost() {
 		setGhost(false);
 		setGhostCanTalk(true);
 		setReserveGhost(false);
 	}
 
+	/** 幽靈狀態計時任務 */
 	private ScheduledFuture<?> _ghostFuture;
 
+	/** 進入幽靈狀態前的 X 座標 */
 	private int _ghostSaveLocX = 0;
 
+	/** 進入幽靈狀態前的 Y 座標 */
 	private int _ghostSaveLocY = 0;
 
+	/** 進入幽靈狀態前的地圖 ID */
 	private short _ghostSaveMapId = 0;
 
+	/** 進入幽靈狀態前的面向 */
 	private int _ghostSaveHeading = 0;
 
+	/** 地獄懲罰計時任務 */
 	private ScheduledFuture<?> _hellFuture;
 
+	/**
+	 * 開始地獄懲罰
+	 * <p>
+	 * 將 PK 值過高的角色傳送到地獄並開始計時懲罰。
+	 * 懲罰時間根據 PK 值計算：
+	 * </p>
+	 * <ul>
+	 * <li>PK ≤ 10：5 分鐘</li>
+	 * <li>PK > 10：5 分鐘 + (PK - 10) × 5 分鐘</li>
+	 * </ul>
+	 *
+	 * @param isFirst 是否為首次進入地獄（首次會計算懲罰時間）
+	 */
 	public void beginHell(boolean isFirst) {
 		// 地獄以外に居るときは地獄へ強制移動
 		if (getMapId() != 666) {
@@ -3961,6 +5821,13 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 重置原始 MP 消耗減少值
+	 * <p>
+	 * 根據職業和原始智力值計算並設定 MP 消耗減少加成。
+	 * 不同職業有不同的智力門檻和加成值。
+	 * </p>
+	 */
 	public void resetOriginalMagicConsumeReduction() {
 		int originalInt = getOriginalInt();
 		if (isCrown()) {
@@ -4018,6 +5885,13 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 重置原始魔法傷害加成
+	 * <p>
+	 * 根據職業和原始智力值計算並設定魔法傷害加成。
+	 * 主要適用於法師和龍騎士職業。
+	 * </p>
+	 */
 	public void resetOriginalMagicDamage() {
 		int originalInt = getOriginalInt();
 		if (isCrown()) {
@@ -4150,6 +6024,13 @@ public class L1PcInstance extends L1Character {
 		addAc(0 - _originalAc);
 	}
 
+	/**
+	 * 重置原始閃避率（ER）加成
+	 * <p>
+	 * 根據職業和原始敏捷值計算並設定閃避率加成。
+	 * 不同職業有不同的敏捷門檻和加成值。
+	 * </p>
+	 */
 	public void resetOriginalEr() {
 		int originalDex = getOriginalDex();
 		if (isCrown()) {
@@ -4223,6 +6104,13 @@ public class L1PcInstance extends L1Character {
 		}
 	}
 
+	/**
+	 * 重置原始 HP 自然恢復速度加成
+	 * <p>
+	 * 根據職業和原始體質值計算並設定 HP 自然恢復速度加成。
+	 * 不同職業有不同的體質門檻和加成值。
+	 * </p>
+	 */
 	public void resetOriginalHpr() {
 		int originalCon = getOriginalCon();
 		if (isCrown()) {

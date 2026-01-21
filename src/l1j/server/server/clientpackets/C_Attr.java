@@ -61,25 +61,207 @@ import l1j.server.server.templates.L1Pet;
 // Referenced classes of package l1j.server.server.clientpackets:
 // ClientBasePacket
 
+/**
+ * 玩家互動確認封包處理器
+ * <p>
+ * 處理客戶端發送的各種確認（Yes/No）回應封包。涵蓋了遊戲中所有需要玩家確認的互動，
+ * 包括血盟管理、交易、戰鬥、復活、結婚、組隊等功能。
+ * </p>
+ *
+ * <h3>主要功能分類：</h3>
+ *
+ * <h4>1. 血盟相關 (Clan)</h4>
+ * <ul>
+ * <li><b>attrcode 97</b>：血盟加入邀請回應</li>
+ * <li><b>attrcode 729</b>：血盟召喚回應</li>
+ * <li><b>attrcode 512</b>：血盟小屋命名</li>
+ * </ul>
+ *
+ * <h4>2. 戰爭相關 (War)</h4>
+ * <ul>
+ * <li><b>attrcode 217</b>：戰爭宣言回應</li>
+ * <li><b>attrcode 221</b>：投降提案回應</li>
+ * <li><b>attrcode 222</b>：結束戰爭提案回應</li>
+ * </ul>
+ *
+ * <h4>3. 交易與戰鬥</h4>
+ * <ul>
+ * <li><b>attrcode 252</b>：交易邀請回應</li>
+ * <li><b>attrcode 630</b>：決鬥邀請回應</li>
+ * </ul>
+ *
+ * <h4>4. 復活與死亡</h4>
+ * <ul>
+ * <li><b>attrcode 321</b>：復活確認（一般復活）</li>
+ * <li><b>attrcode 322</b>：復活確認（祝福復活卷軸/復活術）</li>
+ * <li><b>attrcode 738</b>：經驗值恢復確認</li>
+ * </ul>
+ *
+ * <h4>5. 社交系統</h4>
+ * <ul>
+ * <li><b>attrcode 653</b>：離婚確認</li>
+ * <li><b>attrcode 654</b>：結婚提案回應</li>
+ * </ul>
+ *
+ * <h4>6. 組隊系統</h4>
+ * <ul>
+ * <li><b>attrcode 951</b>：隊伍對話邀請回應</li>
+ * <li><b>attrcode 953</b>：組隊邀請回應</li>
+ * <li><b>attrcode 954</b>：自動分配組隊邀請回應</li>
+ * </ul>
+ *
+ * <h4>7. 角色成長</h4>
+ * <ul>
+ * <li><b>attrcode 479</b>：能力值提升（STR/DEX/CON/INT/WIS/CHA）</li>
+ * </ul>
+ *
+ * <h4>8. 其他功能</h4>
+ * <ul>
+ * <li><b>attrcode 325</b>：寵物命名</li>
+ * <li><b>attrcode 1256</b>：寵物競速預約回應</li>
+ * </ul>
+ *
+ * <h3>封包結構：</h3>
+ * <p>
+ * 封包結構會根據不同的 attrcode 而有所不同：
+ * </p>
+ * <pre>
+ * 標準格式（大部分 attrcode）：
+ * [2 bytes] 訊息編號（attrcode）
+ * [4 bytes] 計數器（紀錄世界中發送 YesNo 的次數）
+ * [2 bytes] 再次確認的 attrcode
+ * [2 bytes] 選擇（0=No, 1=Yes）
+ * [可選] 其他資料（視 attrcode 而定）
+ *
+ * 特殊格式（attrcode 479）：
+ * [2 bytes] attrcode (479)
+ * [1 byte]  確認標記
+ * [string]  能力值名稱（str/dex/con/int/wis/cha）
+ * </pre>
+ *
+ * <h3>處理流程：</h3>
+ * <ol>
+ * <li>讀取封包資料，解析 attrcode</li>
+ * <li>根據 attrcode 執行對應的處理邏輯</li>
+ * <li>驗證玩家狀態和權限</li>
+ * <li>執行相應的遊戲邏輯（加入血盟、復活、交易等）</li>
+ * <li>發送結果封包給相關玩家</li>
+ * <li>更新資料庫（如需要）</li>
+ * </ol>
+ *
+ * @see ClientBasePacket
+ * @see L1Clan
+ * @see L1Party
+ * @see L1ChatParty
+ * @see L1War
+ */
 public class C_Attr extends ClientBasePacket {
 
+	/** 日誌記錄器 */
 	private static final Logger _log = Logger.getLogger(C_Attr.class.getName());
 
+	/**
+	 * 封包類型識別字串
+	 * <p>
+	 * 用於日誌記錄和除錯，標識此封包為玩家互動確認封包。
+	 * </p>
+	 */
 	private static final String C_ATTR = "[C] C_Attr";
 
+	/**
+	 * 方向對應的 X 座標偏移表
+	 * <p>
+	 * 用於血盟召喚功能，根據召喚者的面向計算被召喚者應該出現的 X 座標。
+	 * 索引對應方向：0=北, 1=東北, 2=東, 3=東南, 4=南, 5=西南, 6=西, 7=西北
+	 * </p>
+	 */
 	private static final int HEADING_TABLE_X[] = { 0, 1, 1, 1, 0, -1, -1, -1 };
 
+	/**
+	 * 方向對應的 Y 座標偏移表
+	 * <p>
+	 * 用於血盟召喚功能，根據召喚者的面向計算被召喚者應該出現的 Y 座標。
+	 * 索引對應方向：0=北, 1=東北, 2=東, 3=東南, 4=南, 5=西南, 6=西, 7=西北
+	 * </p>
+	 */
 	private static final int HEADING_TABLE_Y[] = { -1, -1, 0, 1, 1, 1, 0, -1 };
 
+	/**
+	 * 建構子：處理玩家互動確認封包
+	 * <p>
+	 * 根據 attrcode 分派到對應的處理邏輯。每個 attrcode 代表一種特定的玩家確認操作。
+	 * </p>
+	 *
+	 * <h4>封包解析：</h4>
+	 * <pre>
+	 * 一般格式：
+	 * [2 bytes] 訊息編號 i
+	 * 若 i != 479:
+	 *   [4 bytes] 計數器 count
+	 *   [2 bytes] attrcode（實際的操作代碼）
+	 * 若 i == 479:
+	 *   attrcode = 479（能力值提升）
+	 * </pre>
+	 *
+	 * <h4>主要處理的 attrcode：</h4>
+	 * <table border="1">
+	 * <tr><th>attrcode</th><th>功能</th><th>資料格式</th></tr>
+	 * <tr><td>97</td><td>血盟加入確認</td><td>[2 bytes] 選擇</td></tr>
+	 * <tr><td>217</td><td>戰爭宣言確認</td><td>[2 bytes] 選擇</td></tr>
+	 * <tr><td>221</td><td>戰爭投降確認</td><td>[2 bytes] 選擇</td></tr>
+	 * <tr><td>222</td><td>結束戰爭確認</td><td>[2 bytes] 選擇</td></tr>
+	 * <tr><td>252</td><td>交易確認</td><td>[2 bytes] 選擇</td></tr>
+	 * <tr><td>321</td><td>復活確認（一般）</td><td>[2 bytes] 選擇</td></tr>
+	 * <tr><td>322</td><td>復活確認（祝福）</td><td>[2 bytes] 選擇</td></tr>
+	 * <tr><td>325</td><td>寵物命名</td><td>[1 byte] + [string] 名稱</td></tr>
+	 * <tr><td>512</td><td>血盟小屋命名</td><td>[2 bytes] + [string] 名稱</td></tr>
+	 * <tr><td>630</td><td>決鬥確認</td><td>[2 bytes] 選擇</td></tr>
+	 * <tr><td>653</td><td>離婚確認</td><td>[2 bytes] 選擇</td></tr>
+	 * <tr><td>654</td><td>結婚確認</td><td>[2 bytes] 選擇</td></tr>
+	 * <tr><td>729</td><td>血盟召喚確認</td><td>[2 bytes] 選擇</td></tr>
+	 * <tr><td>738</td><td>經驗值恢復確認</td><td>[2 bytes] 選擇</td></tr>
+	 * <tr><td>951</td><td>隊伍對話邀請確認</td><td>[2 bytes] 選擇</td></tr>
+	 * <tr><td>953</td><td>組隊邀請確認</td><td>[2 bytes] 選擇</td></tr>
+	 * <tr><td>954</td><td>自動分配組隊確認</td><td>[2 bytes] 選擇</td></tr>
+	 * <tr><td>479</td><td>能力值提升</td><td>[1 byte] + [string] 能力值名稱</td></tr>
+	 * <tr><td>1256</td><td>寵物競速預約</td><td>[1 byte] 選擇</td></tr>
+	 * </table>
+	 *
+	 * <h4>選擇值：</h4>
+	 * <ul>
+	 * <li><b>0</b>：No（拒絕/取消）</li>
+	 * <li><b>1</b>：Yes（同意/確認）</li>
+	 * </ul>
+	 *
+	 * <h4>臨時 ID 使用：</h4>
+	 * <p>
+	 * 許多操作使用 pc.getTempID() 來取得相關的其他玩家或物件：
+	 * </p>
+	 * <ul>
+	 * <li>血盟加入：TempID 儲存申請加入的玩家 ID</li>
+	 * <li>復活：TempID 儲存施放復活術的玩家 ID</li>
+	 * <li>寵物命名：TempID 儲存寵物物件 ID</li>
+	 * <li>結婚：TempID 儲存求婚者的玩家 ID</li>
+	 * <li>血盟召喚：TempID 儲存召喚者的玩家 ID</li>
+	 * </ul>
+	 *
+	 * @param abyte0 客戶端發送的封包資料
+	 * @param clientthread 客戶端執行緒
+	 * @throws Exception 封包解析或處理過程中的例外
+	 * @see #resurrection(L1PcInstance, L1PcInstance, short)
+	 * @see #changeClan(ClientThread, L1PcInstance, L1PcInstance, int)
+	 * @see #renamePet(L1PetInstance, String)
+	 * @see #callClan(L1PcInstance)
+	 */
 	@SuppressWarnings("static-access")
 	public C_Attr(byte abyte0[], ClientThread clientthread) throws Exception {
 		super(abyte0);
-		
+
 		L1PcInstance pc = clientthread.getActiveChar();
 		if (pc == null) {
 			return;
 		}
-		
+
 		int i = readH(); // 3.51C未知的功能
 		int attrcode;
 
@@ -544,6 +726,38 @@ public class C_Attr extends ClientBasePacket {
 		}
 	}
 
+	/**
+	 * 執行玩家復活
+	 * <p>
+	 * 當玩家同意被其他玩家復活時調用。處理復活的所有相關邏輯，
+	 * 包括設定 HP、啟動回復、播放音效、發送封包等。
+	 * </p>
+	 *
+	 * <h4>復活流程：</h4>
+	 * <ol>
+	 * <li>播放復活音效（技能 ID 230）</li>
+	 * <li>設定玩家為復活狀態</li>
+	 * <li>設定當前 HP 為復活 HP 值</li>
+	 * <li>啟動 HP/MP 自然回復</li>
+	 * <li>啟動娃娃 HP/MP 回復</li>
+	 * <li>停止玩家刪除計時器（死亡後自動登出計時器）</li>
+	 * <li>發送復活封包給自己和周圍玩家</li>
+	 * <li>更新角色外觀（3.80C 版本可能已不需要）</li>
+	 * </ol>
+	 *
+	 * <h4>復活 HP 值：</h4>
+	 * <ul>
+	 * <li><b>一般復活</b>（attrcode 321）：最大 HP 的 50%</li>
+	 * <li><b>祝福復活</b>（attrcode 322）：最大 HP 的 100%</li>
+	 * </ul>
+	 *
+	 * @param pc 要復活的玩家
+	 * @param resusepc 施放復活術的玩家
+	 * @param resHp 復活後的 HP 值
+	 * @see S_Resurrection
+	 * @see S_SkillSound
+	 * @see L1PcInstance#resurrect(int)
+	 */
 	private void resurrection(L1PcInstance pc, L1PcInstance resusepc, short resHp) {
 		// 由其他角色復活
 		pc.sendPackets(new S_SkillSound(pc.getId(), '\346'));
@@ -561,6 +775,54 @@ public class C_Attr extends ClientBasePacket {
 		pc.broadcastPacket(new S_CharVisualUpdate(pc));    // 3.80C可能已經不需要
 	}
 
+	/**
+	 * 處理血盟聯盟（血盟合併）
+	 * <p>
+	 * 當開啟血盟聯盟功能且盟主完成 45 級試煉後，允許其他血盟的盟主加入，
+	 * 將整個血盟合併進來，形成聯盟血盟。原盟主成為聯盟王，所有成員成為聯盟成員。
+	 * </p>
+	 *
+	 * <h4>聯盟條件：</h4>
+	 * <ul>
+	 * <li>伺服器設定啟用血盟聯盟功能（Config.CLAN_ALLIANCE）</li>
+	 * <li>邀請方盟主完成 45 級試煉</li>
+	 * <li>加入方必須是其他血盟的盟主</li>
+	 * <li>合併後的總人數不超過邀請方的血盟人數上限</li>
+	 * </ul>
+	 *
+	 * <h4>處理流程：</h4>
+	 * <ol>
+	 * <li>驗證兩個血盟都存在且加入方是盟主</li>
+	 * <li>檢查合併後的總人數是否超過上限</li>
+	 * <li>將邀請方盟主升級為聯盟王（CLAN_RANK_LEAGUE_PRINCE）</li>
+	 * <li>遍歷被合併血盟的所有成員（線上和離線）：
+	 *   <ul>
+	 *   <li>從舊血盟資料中刪除</li>
+	 *   <li>更改血盟 ID 和名稱</li>
+	 *   <li>設定階級為聯盟成員（CLAN_RANK_LEAGUE_PUBLIC）</li>
+	 *   <li>儲存到新血盟</li>
+	 *   <li>發送相關封包更新客戶端</li>
+	 *   </ul>
+	 * </li>
+	 * <li>刪除舊血盟的盟徽檔案</li>
+	 * <li>從資料庫中刪除舊血盟</li>
+	 * </ol>
+	 *
+	 * <h4>階級變化：</h4>
+	 * <ul>
+	 * <li><b>邀請方盟主</b>：一般階級 → 聯盟王（CLAN_RANK_LEAGUE_PRINCE）</li>
+	 * <li><b>加入方盟主</b>：原盟主 → 聯盟成員（CLAN_RANK_LEAGUE_PUBLIC）</li>
+	 * <li><b>加入方所有成員</b>：原階級 → 聯盟成員（CLAN_RANK_LEAGUE_PUBLIC）</li>
+	 * </ul>
+	 *
+	 * @param clientthread 客戶端執行緒（未使用）
+	 * @param pc 邀請方的盟主
+	 * @param joinPc 加入方的盟主
+	 * @param maxMember 邀請方血盟的最大人數上限
+	 * @see L1Clan#CLAN_RANK_LEAGUE_PRINCE
+	 * @see L1Clan#CLAN_RANK_LEAGUE_PUBLIC
+	 * @see ClanMembersTable
+	 */
 	private void changeClan(ClientThread clientthread, L1PcInstance pc, L1PcInstance joinPc, int maxMember) {
 		int clanId = pc.getClanid();
 		String clanName = pc.getClanname();
@@ -637,6 +899,45 @@ public class C_Attr extends ClientBasePacket {
 		}
 	}
 
+	/**
+	 * 為寵物命名
+	 * <p>
+	 * 當玩家馴服寵物後首次命名時調用。寵物名稱一經設定後無法更改，
+	 * 且名稱在全伺服器必須唯一。
+	 * </p>
+	 *
+	 * <h4>命名規則：</h4>
+	 * <ul>
+	 * <li>寵物名稱在全伺服器必須唯一</li>
+	 * <li>寵物只能命名一次，一旦命名後無法更改</li>
+	 * <li>只有尚未命名的寵物（名稱仍為 NPC 預設名稱）才能命名</li>
+	 * </ul>
+	 *
+	 * <h4>處理流程：</h4>
+	 * <ol>
+	 * <li>驗證寵物和名稱不為 null</li>
+	 * <li>取得寵物資料和寵物模板</li>
+	 * <li>檢查名稱是否已存在（全伺服器唯一性檢查）</li>
+	 * <li>檢查寵物是否尚未命名（名稱是否為 NPC 預設名稱）</li>
+	 * <li>設定寵物新名稱</li>
+	 * <li>更新寵物資料到資料庫</li>
+	 * <li>更新背包中的寵物項目</li>
+	 * <li>發送名稱變更封包給自己和周圍玩家</li>
+	 * </ol>
+	 *
+	 * <h4>錯誤訊息：</h4>
+	 * <ul>
+	 * <li><b>S_ServerMessage 327</b>：同樣的名稱已經存在（名稱不唯一）</li>
+	 * <li><b>S_ServerMessage 326</b>：一旦你已決定就不能再變更（已命名過）</li>
+	 * </ul>
+	 *
+	 * @param pet 要命名的寵物實例
+	 * @param name 寵物的新名稱
+	 * @throws NullPointerException 若寵物或名稱為 null，或寵物模板不存在
+	 * @see PetTable#isNameExists(String)
+	 * @see PetTable#storePet(L1Pet)
+	 * @see S_ChangeName
+	 */
 	private static void renamePet(L1PetInstance pet, String name) {
 		if ((pet == null) || (name == null)) {
 			throw new NullPointerException();
@@ -667,6 +968,66 @@ public class C_Attr extends ClientBasePacket {
 		pc.broadcastPacket(new S_ChangeName(pet.getId(), name));
 	}
 
+	/**
+	 * 執行血盟召喚
+	 * <p>
+	 * 當盟主使用「呼叫血盟」技能時，血盟成員收到邀請並同意後，
+	 * 會被傳送到盟主面前。此方法處理傳送的各種限制和位置計算。
+	 * </p>
+	 *
+	 * <h4>召喚限制：</h4>
+	 * <ul>
+	 * <li><b>地圖限制</b>：被召喚者當前地圖必須允許瞬間移動（isEscapable）</li>
+	 * <li><b>地圖 ID 限制</b>：召喚者必須在特定地圖（0, 4, 304）</li>
+	 * <li><b>戰爭區域限制</b>：
+	 *   <ul>
+	 *   <li>非戰爭時間：城堡區域內無法召喚</li>
+	 *   <li>戰爭時間：可以召喚（支援攻城戰）</li>
+	 *   </ul>
+	 * </li>
+	 * <li><b>目標位置限制</b>：
+	 *   <ul>
+	 *   <li>目標位置必須可通行（isPassable）</li>
+	 *   <li>目標位置不能有其他角色</li>
+	 *   <li>目標位置不能是 (0, 0)</li>
+	 *   </ul>
+	 * </li>
+	 * </ul>
+	 *
+	 * <h4>位置計算：</h4>
+	 * <p>
+	 * 被召喚者會出現在盟主面前（根據盟主的面向）：
+	 * </p>
+	 * <ul>
+	 * <li>使用 HEADING_TABLE_X 和 HEADING_TABLE_Y 計算偏移</li>
+	 * <li>目標位置 = 盟主位置 + 面向偏移</li>
+	 * <li>被召喚者面向 = (盟主面向 + 4) % 8（面對面）</li>
+	 * </ul>
+	 *
+	 * <h4>錯誤訊息：</h4>
+	 * <ul>
+	 * <li><b>S_ServerMessage 647</b>：這附近的能量影響到瞬間移動（地圖不可逃脫）</li>
+	 * <li><b>S_ServerMessage 79</b>：沒有任何事情發生（地圖 ID 限制或戰爭區域）</li>
+	 * <li><b>S_ServerMessage 627</b>：因你要去的地方有障礙物以致於無法直接傳送到該處（位置被阻擋）</li>
+	 * </ul>
+	 *
+	 * <h4>處理流程：</h4>
+	 * <ol>
+	 * <li>從 TempID 取得召喚者（盟主）</li>
+	 * <li>檢查被召喚者當前地圖是否允許瞬移</li>
+	 * <li>驗證 ID 匹配（防止作弊）</li>
+	 * <li>檢查召喚者是否在戰爭區域</li>
+	 * <li>檢查召喚者地圖 ID 是否符合條件</li>
+	 * <li>計算目標傳送位置和面向</li>
+	 * <li>檢查目標位置是否可用</li>
+	 * <li>執行傳送</li>
+	 * </ol>
+	 *
+	 * @param pc 被召喚的血盟成員
+	 * @see L1Teleport#teleport(L1PcInstance, int, int, short, int, boolean, int)
+	 * @see WarTimeController
+	 * @see L1CastleLocation
+	 */
 	private void callClan(L1PcInstance pc) {
 		L1PcInstance callClanPc = (L1PcInstance) L1World.getInstance()
 				.findObject(pc.getTempID());
@@ -730,6 +1091,14 @@ public class C_Attr extends ClientBasePacket {
 				L1Teleport.CALL_CLAN);
 	}
 
+	/**
+	 * 取得封包類型
+	 * <p>
+	 * 返回此封包的類型識別字串，用於日誌記錄和除錯。
+	 * </p>
+	 *
+	 * @return 封包類型字串 "[C] C_Attr"
+	 */
 	@Override
 	public String getType() {
 		return C_ATTR;

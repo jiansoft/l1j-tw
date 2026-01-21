@@ -27,12 +27,146 @@ import l1j.server.server.templates.L1Skills;
 // ClientBasePacket
 
 /**
- * 處理收到由客戶端傳來買魔法OK的封包
+ * 技能購買確認封包處理器
+ * <p>
+ * 處理玩家在魔法商店（Magic Doll）確認購買技能後，客戶端發送的封包。
+ * 負責驗證玩家等級、職業限制、金錢扣除，並實際給予玩家技能。
+ * </p>
+ *
+ * <h3>封包結構：</h3>
+ * <ul>
+ * <li><b>技能數量</b>：2 bytes (readH)</li>
+ * <li><b>技能 ID 列表</b>：count × 4 bytes (readD)，每個技能一個 ID</li>
+ * </ul>
+ *
+ * <h3>技能等級與價格：</h3>
+ * <ul>
+ * <li><b>1 級魔法</b>（技能 ID 0-7）：每個 100 金幣</li>
+ * <li><b>2 級魔法</b>（技能 ID 8-15）：每個 400 金幣</li>
+ * <li><b>3 級魔法</b>（技能 ID 16-23）：每個 900 金幣</li>
+ * </ul>
+ *
+ * <h3>職業等級限制：</h3>
+ * <table border="1">
+ * <tr><th>職業</th><th>1 級魔法</th><th>2 級魔法</th><th>3 級魔法</th></tr>
+ * <tr><td>王族 (0)</td><td>Lv 10</td><td>Lv 20</td><td>不可學習</td></tr>
+ * <tr><td>騎士 (1)</td><td>Lv 50</td><td>不可學習</td><td>不可學習</td></tr>
+ * <tr><td>妖精 (2)</td><td>Lv 8</td><td>Lv 16</td><td>Lv 24</td></tr>
+ * <tr><td>法師 (3)</td><td>Lv 4</td><td>Lv 8</td><td>Lv 12</td></tr>
+ * <tr><td>黑暗妖精 (4)</td><td>Lv 12</td><td>Lv 24</td><td>不可學習</td></tr>
+ * </table>
+ *
+ * <h3>技能編碼機制：</h3>
+ * <p>
+ * 使用位元標記（Bit Flags）方式儲存技能：
+ * </p>
+ * <ul>
+ * <li>技能 ID 0 對應 bit 0 (值 1)</li>
+ * <li>技能 ID 1 對應 bit 1 (值 2)</li>
+ * <li>技能 ID 2 對應 bit 2 (值 4)</li>
+ * <li>技能 ID 3 對應 bit 3 (值 8)</li>
+ * <li>...</li>
+ * <li>技能 ID 7 對應 bit 7 (值 128)</li>
+ * </ul>
+ *
+ * <h3>處理流程：</h3>
+ * <ol>
+ * <li>讀取客戶端發送的技能 ID 列表</li>
+ * <li>根據技能 ID 計算各等級的位元標記和總價格</li>
+ * <li>根據玩家職業和等級，過濾不符合條件的技能</li>
+ * <li>驗證玩家金幣是否足夠</li>
+ * <li>扣除金幣</li>
+ * <li>播放學習技能音效</li>
+ * <li>發送技能給客戶端（S_AddSkill）</li>
+ * <li>將技能寫入資料庫（spellMastery）</li>
+ * </ol>
+ *
+ * @see ClientBasePacket
+ * @see S_AddSkill
+ * @see SkillsTable#spellMastery(int, int, String, int, int)
  */
 public class C_SkillBuyOK extends ClientBasePacket {
 
+	/**
+	 * 封包類型識別字串
+	 * <p>
+	 * 用於日誌記錄和除錯，標識此封包為技能購買確認封包。
+	 * </p>
+	 */
 	private static final String C_SKILL_BUY_OK = "[C] C_SkillBuyOK";
 
+	/**
+	 * 建構子：處理技能購買封包
+	 * <p>
+	 * 當玩家在魔法商店確認購買技能時，客戶端會發送此封包。
+	 * 本方法負責解析封包、驗證條件、扣除金幣、給予技能。
+	 * </p>
+	 *
+	 * <h4>封包資料結構：</h4>
+	 * <pre>
+	 * [2 bytes] 技能數量 (count)
+	 * [4 bytes] 技能 ID 1
+	 * [4 bytes] 技能 ID 2
+	 * ...
+	 * [4 bytes] 技能 ID count
+	 * </pre>
+	 *
+	 * <h4>處理邏輯：</h4>
+	 * <ol>
+	 * <li><b>驗證玩家狀態</b>：檢查玩家是否在線且非幽靈狀態</li>
+	 * <li><b>解析技能列表</b>：讀取技能數量和各技能 ID</li>
+	 * <li><b>計算位元標記</b>：根據技能 ID 計算各等級的位元標記值
+	 *   <ul>
+	 *   <li>1 級魔法（ID 0-7）：level1 變數，每個技能 100 金幣</li>
+	 *   <li>2 級魔法（ID 8-15）：level2 變數，每個技能 400 金幣</li>
+	 *   <li>3 級魔法（ID 16-23）：level3 變數，每個技能 900 金幣</li>
+	 *   </ul>
+	 * </li>
+	 * <li><b>職業等級限制</b>：根據玩家職業和等級，清除不符資格的技能
+	 *   <ul>
+	 *   <li>王族：10 級可學 1 級，20 級可學 2 級，不可學 3 級</li>
+	 *   <li>騎士：50 級可學 1 級，不可學 2、3 級</li>
+	 *   <li>妖精：8 級可學 1 級，16 級可學 2 級，24 級可學 3 級</li>
+	 *   <li>法師：4 級可學 1 級，8 級可學 2 級，12 級可學 3 級</li>
+	 *   <li>黑暗妖精：12 級可學 1 級，24 級可學 2 級，不可學 3 級</li>
+	 *   <li>GM：無限制</li>
+	 *   </ul>
+	 * </li>
+	 * <li><b>驗證金幣</b>：檢查玩家是否有足夠金幣</li>
+	 * <li><b>扣除金幣</b>：消耗對應數量的金幣</li>
+	 * <li><b>播放音效</b>：播放學習技能音效（技能 ID 224）</li>
+	 * <li><b>發送封包</b>：發送 S_AddSkill 封包給客戶端</li>
+	 * <li><b>寫入資料庫</b>：使用位元檢查，將每個技能寫入資料庫
+	 *   <pre>
+	 *   例如：level1 = 5 (二進位 00000101)
+	 *        表示玩家學習了技能 ID 0 (bit 0) 和技能 ID 2 (bit 2)
+	 *        使用 (level1 & 1) == 1 檢查 bit 0
+	 *        使用 (level1 & 4) == 4 檢查 bit 2
+	 *   </pre>
+	 * </li>
+	 * <li><b>錯誤處理</b>：金幣不足時發送錯誤訊息（S_ServerMessage 189）</li>
+	 * </ol>
+	 *
+	 * <h4>位元標記範例：</h4>
+	 * <pre>
+	 * 技能 ID 0 (1 級第 1 個魔法)：level1 += 1   (2^0 = 1)
+	 * 技能 ID 1 (1 級第 2 個魔法)：level1 += 2   (2^1 = 2)
+	 * 技能 ID 2 (1 級第 3 個魔法)：level1 += 4   (2^2 = 4)
+	 * 技能 ID 3 (1 級第 4 個魔法)：level1 += 8   (2^3 = 8)
+	 * ...
+	 * 技能 ID 8 (2 級第 1 個魔法)：level2 += 1   (2^0 = 1)
+	 * ...
+	 * 技能 ID 16 (3 級第 1 個魔法)：level3 += 1  (2^0 = 1)
+	 * </pre>
+	 *
+	 * @param abyte0 客戶端發送的封包資料
+	 * @param clientthread 客戶端執行緒
+	 * @throws Exception 封包解析或處理過程中的例外
+	 * @see S_AddSkill
+	 * @see S_SkillSound
+	 * @see S_ServerMessage
+	 * @see SkillsTable#spellMastery(int, int, String, int, int)
+	 */
 	public C_SkillBuyOK(byte abyte0[], ClientThread clientthread) throws Exception {
 		super(abyte0);
 		
@@ -394,6 +528,14 @@ public class C_SkillBuyOK extends ClientBasePacket {
 		}
 	}
 
+	/**
+	 * 取得封包類型
+	 * <p>
+	 * 返回此封包的類型識別字串，用於日誌記錄和除錯。
+	 * </p>
+	 *
+	 * @return 封包類型字串 "[C] C_SkillBuyOK"
+	 */
 	@Override
 	public String getType() {
 		return C_SKILL_BUY_OK;

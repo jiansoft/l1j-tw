@@ -38,7 +38,7 @@ public abstract class L1Item implements Cloneable, Serializable {
 
 	/**
 	 * @return 0 if L1EtcItem, 1 if L1Weapon, 2 if L1Armor
-	 */
+	 */	
 	public int getType2() {
 		return _type2;
 	}

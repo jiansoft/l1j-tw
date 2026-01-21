@@ -14,16 +14,88 @@
  */
 package l1j.server.server;
 
+/**
+ * 網路封包操作碼 (Opcodes) 定義類別
+ *
+ * <p>此類別定義了 Lineage 1 客戶端與伺服器之間通訊協定的所有操作碼常數。
+ * 操作碼是每個封包的第一個位元組,用於識別封包的類型與功能。
+ *
+ * <h3>支援的遊戲版本:</h3>
+ * <ul>
+ *   <li><b>3.80C Taiwan Server (2013.08.21)</b> - 主要支援版本</li>
+ *   <li><b>3.5C Taiwan Server (2011.08.09)</b> - 部分支援 (已註解)</li>
+ *   <li><b>3.3C</b> - 傭兵系統相關 (部分功能)</li>
+ * </ul>
+ *
+ * <h3>封包命名規則:</h3>
+ * <ul>
+ *   <li>{@code C_OPCODE_*} - 客戶端發送給伺服器的封包 (Client → Server)</li>
+ *   <li>{@code S_OPCODE_*} - 伺服器發送給客戶端的封包 (Server → Client)</li>
+ * </ul>
+ *
+ * <h3>封包分類:</h3>
+ * <ul>
+ *   <li><b>登入相關:</b> LOGINPACKET, BEANFUNLOGINPACKET, LOGINTOSERVER, LOGINRESULT</li>
+ *   <li><b>角色管理:</b> NEWCHAR, DELETECHAR, CHANGECHAR, CHARLIST, CHARRESET</li>
+ *   <li><b>移動與位置:</b> MOVECHAR, CHANGEHEADING, TELEPORT, ENTERPORTAL</li>
+ *   <li><b>戰鬥系統:</b> ATTACK, ARROWATTACK, USESKILL, FIGHT</li>
+ *   <li><b>物品系統:</b> USEITEM, DROPITEM, PICKUPITEM, GIVEITEM, TRADE</li>
+ *   <li><b>聊天通訊:</b> CHAT, CHATWHISPER, CHATGLOBAL, CAHTPARTY</li>
+ *   <li><b>血盟系統:</b> CREATECLAN, JOINCLAN, LEAVECLANE, PLEDGE, BANCLAN</li>
+ *   <li><b>隊伍系統:</b> CREATEPARTY, LEAVEPARTY, PARTYLIST, BANPARTY</li>
+ *   <li><b>商店交易:</b> SHOP, PRIVATESHOPLIST, SHOWSHOPBUYLIST, SHOWSHOPSELLLIST</li>
+ *   <li><b>介面互動:</b> NPCTALK, NPCACTION, BOARD, MAIL, BOOKMARK</li>
+ *   <li><b>城堡管理:</b> DEPOSIT, DRAWAL, TAXRATE, CASTLESECURITY</li>
+ *   <li><b>狀態更新:</b> HPUPDATE, MPUPDATE, EXP, LAWFUL, OWNCHARSTATUS</li>
+ *   <li><b>視覺效果:</b> SKILLSOUNDGFX, EFFECTLOCATION, DOACTIONGFX, POLY</li>
+ * </ul>
+ *
+ * <h3>重要說明:</h3>
+ * <ul>
+ *   <li>不同遊戲版本使用不同的 Opcode 值</li>
+ *   <li>部分 Opcode 在不同版本中已不使用 (標記為註解或「已不使用」)</li>
+ *   <li>某些功能使用相同的 Opcode (如 S_OPCODE_PACKETBOX 是多功能封包)</li>
+ *   <li>封包處理器根據這些 Opcode 將封包路由到對應的處理類別</li>
+ * </ul>
+ *
+ * <h3>使用範例:</h3>
+ * <pre>
+ * // 建立移動封包
+ * writeC(Opcodes.S_OPCODE_MOVEOBJECT);
+ *
+ * // 在 PacketHandler 中路由封包
+ * switch (opcode) {
+ *     case Opcodes.C_OPCODE_MOVECHAR:
+ *         packet = new C_MoveChar(decrypt, client);
+ *         break;
+ * }
+ * </pre>
+ *
+ * @see l1j.server.server.PacketHandler
+ * @see l1j.server.server.clientpackets.ClientBasePacket
+ * @see l1j.server.server.serverpackets.ServerBasePacket
+ */
 public class Opcodes {
 
+	/**
+	 * 建構式
+	 */
 	public Opcodes() {
 	}
 	
 	/**
 	 * @3.80C Taiwan Server 2013.08.21
 	 */
-	
-	/** 3.80C Client Packet */
+
+	// ========================================
+	// 3.80C 客戶端封包 (Client → Server)
+	// ========================================
+
+	/**
+	 * <h3>3.80C 客戶端封包 Opcodes</h3>
+	 * <p>以下是台灣 3.80C 版本客戶端發送給伺服器的封包操作碼。
+	 * <p>客戶端封包由玩家在遊戲中的操作觸發,伺服器接收後進行對應的處理。
+	 */
 	public static final int C_OPCODE_TRADE = 2; // 請求交易
 	public static final int C_OPCODE_BOOKMARKDELETE = 3; // 請求刪除記憶座標
 	public static final int C_OPCODE_BUDDYLIST = 4; // 請求查詢好友名單
@@ -127,8 +199,16 @@ public class Opcodes {
 	public static final int C_OPCODE_SMS = 253; // 請求傳送簡訊
 	public static final int C_OPCODE_SENDLOCATION = 254; // 請求傳送位置
 	public static final int C_OPCODE_BANPARTY = 255; // 請求驅逐隊伍
-	
-	/** 3.80C Server Packet */
+
+	// ========================================
+	// 3.80C 伺服器封包 (Server → Client)
+	// ========================================
+
+	/**
+	 * <h3>3.80C 伺服器封包 Opcodes</h3>
+	 * <p>以下是台灣 3.80C 版本伺服器發送給客戶端的封包操作碼。
+	 * <p>伺服器封包用於通知客戶端遊戲狀態變化、顯示資訊或觸發視覺效果。
+	 */
 	public static final int S_OPCODE_PLEDGE_RECOMMENDATION = 0; // 推薦血盟資訊更新
 	
 	public static final int S_OPCODE_DEPOSIT = 4; // 存入資金城堡寶庫
@@ -253,12 +333,23 @@ public class Opcodes {
 	
 	public static final int S_OPCODE_SKILLHASTE = 255; // 魔法或物品產生的加速效果
 
-	
+
+	// ========================================
+	// 3.5C 客戶端與伺服器封包 (部分支援)
+	// ========================================
+
 	/**
-	 * @3.5C Taiwan Server <b>2011.08.09 Lin.bin
+	 * <h3>3.5C Taiwan Server 版本封包 Opcodes</h3>
+	 * <p>以下是台灣 3.5C 版本 (2011.08.09 Lin.bin) 的封包操作碼。
+	 * <p>大部分 3.5C 版本的 Opcode 已被註解,僅保留少數特殊功能的 Opcode。
+	 * <p>主要支援版本為 3.80C,3.5C 僅作為參考或向下相容使用。
+	 *
+	 * @deprecated 大部分功能已由 3.80C 版本取代
 	 */
 
-	/** 3.5C Client Packet */
+	// ========================================
+	// 3.5C 客戶端封包 (Client → Server)
+	// ========================================
 	//public static final int C_OPCODE_BANPARTY = 0; // 請求驅逐隊伍
 	//public static final int C_OPCODE_SHIP = 1; // 請求下船
 	public static final int C_OPCODE_TELEPORTLOCK = 2; // 玩家傳送鎖定(回溯檢測用)
@@ -352,7 +443,9 @@ public class Opcodes {
 	//public static final int C_OPCODE_CREATEPARTY = 130; // 請求邀請加入隊伍或建立隊伍
 	//public static final int C_OPCODE_CAHTPARTY = 131; // 請求聊天隊伍
 
-	/** 3.5C Server Packet */
+	// ========================================
+	// 3.5C 伺服器封包 (Server → Client)
+	// ========================================
 	//public static final int S_OPCODE_PUTSOLDIER = 3333; // 配置已的僱用傭兵
 	//public static final int S_OPCODE_SKILLBUY_2 = 14444; // 學習魔法 (何侖)
 	//public static final int S_OPCODE_SHOWSHOPSELLLIST = 2; // 商店收購清單
@@ -470,18 +563,38 @@ public class Opcodes {
 	//public static final int S_OPCODE_DOACTIONGFX = 123; // 執行物件外觀動作
 	//public static final int S_OPCODE_REMOVE_OBJECT = 124; // 物件刪除
 	//public static final int S_OPCODE_EMBLEM = 125; // 下載血盟徽章
-	//public static final int S_OPCODE_LIQUOR = 1264; // 海浪波浪 
+	//public static final int S_OPCODE_LIQUOR = 1264; // 海浪波浪
 	//public static final int S_OPCODE_HOUSELIST = 127; // 血盟小屋名單
 
-	/** 3.3C Client Packet (3.5C 未抓取) id非正確 */
+	// ========================================
+	// 3.3C 傭兵系統相關封包
+	// ========================================
+
+	/**
+	 * <h3>3.3C 客戶端封包 - 傭兵系統</h3>
+	 * <p>以下是 3.3C 版本的傭兵系統相關封包操作碼。
+	 * <p><b>注意:</b> 這些 Opcode ID 並非完全正確,因為 3.5C 版本未完整抓取。
+	 * <p>主要用於城堡傭兵的僱用、配置與管理功能。
+	 */
 	public static final int C_OPCODE_HIRESOLDIER = 1411;//要求僱傭傭兵列表(購買)
 	public static final int C_OPCODE_CHANGEWARTIME = 1443;//修正城堡總管全部功能
 	public static final int C_OPCODE_PUTSOLDIER = 1453;//要求配置已僱用士兵
 	public static final int C_OPCODE_SELECTWARTIME = 1463;//要求選擇 變更攻城時間(but3.3C無使用)
 	public static final int C_OPCODE_PUTBOWSOLDIER = 1473;//要求配置城牆上弓手
-    
-	
-	/** 已不使用*/
+
+
+	// ========================================
+	// 已棄用的封包 Opcodes
+	// ========================================
+
+	/**
+	 * <h3>已不使用的封包 Opcodes</h3>
+	 * <p>以下是已經棄用或不再使用的封包操作碼。
+	 * <p>這些 Opcode 可能在舊版本中使用,但在目前版本已被移除或替換。
+	 * <p>保留這些定義主要用於向下相容或歷史參考。
+	 *
+	 * @deprecated 這些 Opcode 已不再使用於當前版本
+	 */
 	public static final int S_OPCODE_EXP = 1000001; // 經驗值更新
 	public static final int S_OPCODE_FIX_WEAPON_MENU = 1000002; // 修理武器清單
 	public static final int S_OPCODE_WARTIME = 1000003; // 設定圍成時間 (已不使用)
