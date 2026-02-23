@@ -40,9 +40,51 @@ import l1j.server.server.templates.L1Pet;
 import l1j.server.server.templates.L1PetItem;
 import l1j.server.server.utils.BinaryOutputStream;
 
-// Referenced classes of package l1j.server.server.model:
-// L1Object, L1PcInstance
-
+/**
+ * 物品實例類別
+ * <p>
+ * 代表遊戲中的一個物品實例，對應資料庫表 {@code character_items}。
+ * 每個物品實例都有唯一的 ID，並關聯到一個物品模板 ({@link L1Item})。
+ * </p>
+ *
+ * <h3>資料庫對應：</h3>
+ * <table border="1">
+ *   <tr><th>character_items 欄位</th><th>類別屬性</th><th>說明</th></tr>
+ *   <tr><td>id</td><td>{@link L1Object#getId()}</td><td>物品實例唯一 ID</td></tr>
+ *   <tr><td>item_id</td><td>{@link #_itemId}</td><td>物品模板 ID</td></tr>
+ *   <tr><td>char_id</td><td>透過 Inventory 關聯</td><td>擁有者角色 ID</td></tr>
+ *   <tr><td>count</td><td>{@link #_count}</td><td>物品數量</td></tr>
+ *   <tr><td>is_equipped</td><td>{@link #_isEquipped}</td><td>是否已裝備</td></tr>
+ *   <tr><td>enchantlvl</td><td>{@link #_enchantLevel}</td><td>強化等級</td></tr>
+ *   <tr><td>is_id</td><td>{@link #_isIdentified}</td><td>是否已鑑定</td></tr>
+ *   <tr><td>durability</td><td>{@link #_durability}</td><td>耐久度</td></tr>
+ *   <tr><td>charge_count</td><td>{@link #_chargeCount}</td><td>充能次數</td></tr>
+ *   <tr><td>remaining_time</td><td>{@link #_remainingTime}</td><td>剩餘時間</td></tr>
+ *   <tr><td>last_used</td><td>{@link #_lastUsed}</td><td>最後使用時間</td></tr>
+ *   <tr><td>bless</td><td>{@link #_bless}</td><td>祝福狀態 (0=祝福, 1=一般, 2=詛咒)</td></tr>
+ *   <tr><td>attr_enchant_kind</td><td>{@link #_attrEnchantKind}</td><td>屬性強化種類</td></tr>
+ *   <tr><td>attr_enchant_level</td><td>{@link #_attrEnchantLevel}</td><td>屬性強化等級</td></tr>
+ * </table>
+ *
+ * <h3>主要功能：</h3>
+ * <ul>
+ *   <li><b>物品資訊</b>：名稱、數量、強化等級、鑑定狀態</li>
+ *   <li><b>裝備管理</b>：裝備/卸下狀態、耐久度</li>
+ *   <li><b>特殊屬性</b>：祝福/詛咒狀態、屬性強化</li>
+ *   <li><b>時效性物品</b>：剩餘時間、充能次數</li>
+ *   <li><b>堆疊判斷</b>：是否可堆疊 (來自物品模板)</li>
+ * </ul>
+ *
+ * <h3>繼承關係：</h3>
+ * <pre>
+ * L1Object
+ *   └── L1ItemInstance
+ * </pre>
+ *
+ * @see L1Object
+ * @see L1Item
+ * @see L1PcInventory
+ */
 public class L1ItemInstance extends L1Object {
 	private static final long serialVersionUID = 1L;
 

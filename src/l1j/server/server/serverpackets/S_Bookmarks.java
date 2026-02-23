@@ -18,6 +18,10 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import l1j.server.L1DatabaseFactory;
 import l1j.server.server.Opcodes;
@@ -27,6 +31,7 @@ import l1j.server.server.utils.SQLUtil;
 
 public class S_Bookmarks extends ServerBasePacket {
 	private static final String _S__1F_S_Bookmarks = "[S] S_Bookmarks";
+	private static Logger _log = Logger.getLogger(S_Bookmarks.class.getName());
 
 	private byte[] _byte = null;
 
@@ -38,7 +43,8 @@ public class S_Bookmarks extends ServerBasePacket {
 	 * 角色重登載入
 	 * @param pc
 	 */
-	public S_Bookmarks(L1PcInstance pc){
+	public S_Bookmarks(L1PcInstance pc) {
+		List<L1BookMark> bookmarks = new ArrayList<>();
 		Connection con = null;
 		PreparedStatement pstm = null;
 		ResultSet rs = null;
@@ -47,26 +53,8 @@ public class S_Bookmarks extends ServerBasePacket {
 			pstm = con.prepareStatement("SELECT * FROM character_teleport WHERE char_id=? ORDER BY name ASC");
 			pstm.setInt(1, pc.getId());
 			rs = pstm.executeQuery();
-			rs.last();                  // 為了取得總列數，先將指標拉到最後
-			int rowcount = rs.getRow(); // 取得總列數
-            rs.beforeFirst();           // 將指標移回最前頭
-            writeC(Opcodes.S_OPCODE_CHARRESET);
-			writeC(0x2a);
-			writeC(0x80);
-			writeC(0x00); 
-			writeC(0x02);
-            for(int i = 0; i<= 126 ; i++){
-            	if(i < rowcount){
-            		writeC(i);
-            	}else{
-            		writeC(0x00);
-            	}
-            }
-            writeC(0x3c);
-			writeC(0);
-			writeC(rowcount);
-			writeC(0);
-			
+
+			// 先讀取所有書籤到 List
 			while (rs.next()) {
 				L1BookMark bookmark = new L1BookMark();
 				bookmark.setId(rs.getInt("id"));
@@ -75,20 +63,42 @@ public class S_Bookmarks extends ServerBasePacket {
 				bookmark.setLocX(rs.getInt("locx"));
 				bookmark.setLocY(rs.getInt("locy"));
 				bookmark.setMapId(rs.getShort("mapid"));
-				writeH(bookmark.getLocX());
-				writeH(bookmark.getLocY());
-				writeS(bookmark.getName());
-				writeH(bookmark.getMapId());
-				writeD(bookmark.getId());
-				pc.addBookMark(bookmark);
+				bookmarks.add(bookmark);
 			}
-
 		} catch (SQLException e) {
-			System.out.println(e.getLocalizedMessage());
+			_log.log(Level.SEVERE, "S_Bookmarks 讀取書籤失敗", e);
 		} finally {
 			SQLUtil.close(rs);
 			SQLUtil.close(pstm);
 			SQLUtil.close(con);
+		}
+
+		// 建構封包
+		int rowcount = bookmarks.size();
+		writeC(Opcodes.S_OPCODE_CHARRESET);
+		writeC(0x2a);
+		writeC(0x80);
+		writeC(0x00);
+		writeC(0x02);
+		for (int i = 0; i <= 126; i++) {
+			if (i < rowcount) {
+				writeC(i);
+			} else {
+				writeC(0x00);
+			}
+		}
+		writeC(0x3c);
+		writeC(0);
+		writeC(rowcount);
+		writeC(0);
+
+		for (L1BookMark bookmark : bookmarks) {
+			writeH(bookmark.getLocX());
+			writeH(bookmark.getLocY());
+			writeS(bookmark.getName());
+			writeH(bookmark.getMapId());
+			writeD(bookmark.getId());
+			pc.addBookMark(bookmark);
 		}
 	}
 

@@ -25,8 +25,18 @@ public class S_DropItem extends ServerBasePacket {
 	private static final String _S__OB_DropItem = "[S] S_DropItem";
 
 	private byte[] _byte = null;
+	private int _itemObjId;
+	private String _itemName;
+	private int _x;
+	private int _y;
+	private int _count;
 
 	public S_DropItem(L1ItemInstance item) {
+		_itemObjId = item.getId();
+		_x = item.getX();
+		_y = item.getY();
+		_count = item.getCount();
+		_itemName = item.isIdentified() ? item.getItem().getIdentifiedNameId() : item.getItem().getUnidentifiedNameId();
 		buildPacket(item);
 	}
 
@@ -111,4 +121,8 @@ public class S_DropItem extends ServerBasePacket {
 		return _S__OB_DropItem;
 	}
 
+	@Override
+	public String getParams() {
+		return "itemObjId=" + _itemObjId + ", name=\"" + _itemName + "\", x=" + _x + ", y=" + _y + ", count=" + _count;
+	}
 }

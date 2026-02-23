@@ -31,6 +31,8 @@ public class S_PacketBox extends ServerBasePacket {
 	private static final String S_PACKETBOX = "[S] S_PacketBox";
 
 	private byte[] _byte = null;
+	private final int _subCode;
+	private String _extraInfo = "";
 
 	// *** S_107 sub code list ***
 	// 1:Kent 2:Orc 3:WW 4:Giran 5:Heine 6:Dwarf 7:Aden 8:Diad 9:城名9 ...
@@ -233,6 +235,7 @@ public class S_PacketBox extends ServerBasePacket {
 	
 
 	public S_PacketBox(int subCode) {
+		_subCode = subCode;
 		writeC(Opcodes.S_OPCODE_PACKETBOX);
 		writeC(subCode);
 
@@ -253,6 +256,8 @@ public class S_PacketBox extends ServerBasePacket {
 	}
 	
 	public S_PacketBox(int subCode, L1PcInstance pc){
+		_subCode = subCode;
+		_extraInfo = "pc=" + pc.getName();
 		writeC(Opcodes.S_OPCODE_PACKETBOX);
 		writeC(subCode);
 		switch(subCode){
@@ -266,6 +271,8 @@ public class S_PacketBox extends ServerBasePacket {
 	}
 
 	public S_PacketBox(int subCode, int value) {
+		_subCode = subCode;
+		_extraInfo = "value=" + value;
 		writeC(Opcodes.S_OPCODE_PACKETBOX);
 		writeC(subCode);
 
@@ -333,6 +340,8 @@ public class S_PacketBox extends ServerBasePacket {
 	}
 
 	public S_PacketBox(int subCode, int type, int time) {
+		_subCode = subCode;
+		_extraInfo = "type=" + type + ", time=" + time;
 		writeC(Opcodes.S_OPCODE_PACKETBOX);
 		writeC(subCode);
 
@@ -397,6 +406,8 @@ public class S_PacketBox extends ServerBasePacket {
 	}
 
 	public S_PacketBox(int subCode, String name) {
+		_subCode = subCode;
+		_extraInfo = "name=\"" + name + "\"";
 		writeC(Opcodes.S_OPCODE_PACKETBOX);
 		writeC(subCode);
 
@@ -413,6 +424,8 @@ public class S_PacketBox extends ServerBasePacket {
 	}
 
 	public S_PacketBox(int subCode, int id, String name, String clanName) {
+		_subCode = subCode;
+		_extraInfo = "id=" + id + ", name=\"" + name + "\"";
 		writeC(Opcodes.S_OPCODE_PACKETBOX);
 		writeC(subCode);
 
@@ -429,6 +442,8 @@ public class S_PacketBox extends ServerBasePacket {
 	}
 	
 	public S_PacketBox(int subCode, int rank, String name) {
+		_subCode = subCode;
+		_extraInfo = "rank=" + rank + ", name=\"" + name + "\"";
 		writeC(Opcodes.S_OPCODE_PACKETBOX);
 		writeC(subCode);
 
@@ -442,6 +457,8 @@ public class S_PacketBox extends ServerBasePacket {
 	}
 
 	public S_PacketBox(int subCode, Object[] names) {
+		_subCode = subCode;
+		_extraInfo = "count=" + (names != null ? names.length : 0);
 		writeC(Opcodes.S_OPCODE_PACKETBOX);
 		writeC(subCode);
 
@@ -483,6 +500,8 @@ public class S_PacketBox extends ServerBasePacket {
 	 * @param value 時間
 	 */
 	public S_PacketBox(int subCode, Object[] names, int[] value) {
+		_subCode = subCode;
+		_extraInfo = "count=" + (names != null ? names.length : 0);
 		writeC(Opcodes.S_OPCODE_PACKETBOX);
 		writeC(subCode);
 
@@ -542,5 +561,10 @@ public class S_PacketBox extends ServerBasePacket {
 	@Override
 	public String getType() {
 		return S_PACKETBOX;
+	}
+
+	@Override
+	public String getParams() {
+		return "subCode=" + _subCode + (_extraInfo.isEmpty() ? "" : ", " + _extraInfo);
 	}
 }

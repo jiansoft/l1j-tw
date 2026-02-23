@@ -29,8 +29,26 @@ public class S_UseArrowSkill extends ServerBasePacket {
 	private static AtomicInteger _sequentialNumber = new AtomicInteger(0);
 
 	private byte[] _byte = null;
+	private int _attackerId;
+	private int _targetId;
+	private int _actId;
+	private int _damage;
+	private int _spellGfx;
+	private int _srcX;
+	private int _srcY;
+	private int _destX;
+	private int _destY;
 
 	public S_UseArrowSkill(L1Character cha, int targetobj, int x, int y, int[] data) { // data = {actid, dmg, spellgfx}
+		_attackerId = cha.getId();
+		_targetId = targetobj;
+		_actId = data[0];
+		_damage = data[1];
+		_spellGfx = data[2];
+		_srcX = cha.getX();
+		_srcY = cha.getY();
+		_destX = x;
+		_destY = y;
 		writeC(Opcodes.S_OPCODE_ATTACKPACKET);
 		writeC(data[0]); // actid
 		writeD(cha.getId());
@@ -72,4 +90,8 @@ public class S_UseArrowSkill extends ServerBasePacket {
 		return S_USE_ARROW_SKILL;
 	}
 
+	@Override
+	public String getParams() {
+		return "attackerId=" + _attackerId + ", targetId=" + _targetId + ", actId=" + _actId + ", dmg=" + _damage + ", spellGfx=" + _spellGfx + ", src=(" + _srcX + "," + _srcY + "), dest=(" + _destX + "," + _destY + ")";
+	}
 }

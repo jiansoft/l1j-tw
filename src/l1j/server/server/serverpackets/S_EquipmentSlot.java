@@ -26,12 +26,13 @@ import java.util.Map;
  * 原本應該與CHARRESET寫在一起，為了方便獨立開來。
  */
 public class S_EquipmentSlot extends ServerBasePacket{
-	/* 角色登入*/ 
+	/* 角色登入*/
 	private static final int TYPE_EQUIPONLOGIN = 0x41;
 	/* 穿脫*/
-	private static final int TYPE_EQUIPACTION = 0x42; 
-	
-	
+	private static final int TYPE_EQUIPACTION = 0x42;
+
+	private String _params = "";
+
 	/**
 	 * 裝備欄位顯示 穿脫用
 	 * @param pc         玩家物件
@@ -40,6 +41,7 @@ public class S_EquipmentSlot extends ServerBasePacket{
 	 * @param equipOnOff 裝備: 1, 卸除: 0
 	 */
 	public S_EquipmentSlot(int ItemObjid, int index, boolean equipOnOff) {
+		_params = "itemObjId=" + ItemObjid + ", index=" + index + ", equip=" + equipOnOff;
 		writeC(S_OPCODE_CHARRESET);
 		writeC(TYPE_EQUIPACTION);
 		writeD(ItemObjid);
@@ -54,6 +56,7 @@ public class S_EquipmentSlot extends ServerBasePacket{
 	 * @param index      序號
 	 */
 	public S_EquipmentSlot(final Map<Integer, Integer> items){
+		_params = "equipCount=" + items.size();
 		writeC(S_OPCODE_CHARRESET);
 		writeC(TYPE_EQUIPONLOGIN);
 		writeC(items.size());
@@ -127,4 +130,8 @@ public class S_EquipmentSlot extends ServerBasePacket{
 		return "[S] S_EquipmentSlot";
 	}
 
+	@Override
+	public String getParams() {
+		return _params;
+	}
 }

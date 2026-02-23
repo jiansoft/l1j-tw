@@ -19,6 +19,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import static l1j.server.server.Opcodes.S_OPCODE_PACKETBOX;
 import l1j.server.L1DatabaseFactory;
@@ -33,9 +35,10 @@ import l1j.server.server.utils.SQLUtil;
  * 處理查詢血盟倉庫使用紀錄的封包
  */
 public class S_PledgeWarehouseHistory extends ServerBasePacket {
-	
+
 	private static final String S_PledgeWarehouseHistory = "[S] S_PledgeWarehouseHistory";
-	
+	private static Logger _log = Logger.getLogger(S_PledgeWarehouseHistory.class.getName());
+
 	private byte[] _byte = null;
 	
 	
@@ -72,7 +75,7 @@ public class S_PledgeWarehouseHistory extends ServerBasePacket {
             	writeD((int)((System.currentTimeMillis() - rs.getTimestamp("record_time").getTime()) / 60000)); // 過了幾分鐘
             }
 		} catch (SQLException e) {
-			System.out.println(e.getLocalizedMessage());
+			_log.log(Level.SEVERE, "S_PledgeWarehouseHistory 讀取失敗", e);
 		} finally {
 			SQLUtil.close(rs);
 			SQLUtil.close(pstm);

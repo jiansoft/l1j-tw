@@ -24,8 +24,10 @@ import l1j.server.server.utils.Random;
 public class S_ActiveSpells extends ServerBasePacket {
 
 	private byte[] _byte = null;
+	private final String _charName;
 
 	public S_ActiveSpells(L1PcInstance pc) {
+		_charName = pc.getName();
 		byte[] randBox = new byte[2];
 		randBox[0] = Random.nextByte();
 		randBox[1] = Random.nextByte();
@@ -140,5 +142,10 @@ public class S_ActiveSpells extends ServerBasePacket {
 		}
 
 		return _byte;
+	}
+
+	@Override
+	public String getParams() {
+		return "charName=\"" + _charName + "\"";
 	}
 }

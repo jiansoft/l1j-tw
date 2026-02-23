@@ -21,7 +21,12 @@ import l1j.server.server.Opcodes;
 
 public class S_CharTitle extends ServerBasePacket {
 
+	private final int _objId;
+	private final String _title;
+
 	public S_CharTitle(int objid, String title) {
+		_objId = objid;
+		_title = title;
 		writeC(Opcodes.S_OPCODE_CHARTITLE);
 		writeD(objid);
 		writeS(title);
@@ -35,5 +40,10 @@ public class S_CharTitle extends ServerBasePacket {
 	@Override
 	public String getType() {
 		return "[S] S_CharTitle";
+	}
+
+	@Override
+	public String getParams() {
+		return "objId=" + _objId + ", title=\"" + _title + "\"";
 	}
 }

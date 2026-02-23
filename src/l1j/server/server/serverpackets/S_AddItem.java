@@ -24,10 +24,19 @@ public class S_AddItem extends ServerBasePacket {
 
 	private static final String S_ADD_ITEM = "[S] S_AddItem";
 
+	private int _itemObjId;
+	private String _itemName;
+	private int _count;
+	private int _enchantLevel;
+
 	/**
 	 * 增加物品到背包處理封包。
 	 */
 	public S_AddItem(L1ItemInstance item) {
+		_itemObjId = item.getId();
+		_itemName = item.getViewName();
+		_count = item.getCount();
+		_enchantLevel = item.getEnchantLevel();
 		writeC(Opcodes.S_OPCODE_ADDITEM);
 		writeD(item.getId());
 		writeH(item.getItem().getMagicCatalystType() > 0 ? item.getItem().getMagicCatalystType() :
@@ -81,5 +90,10 @@ public class S_AddItem extends ServerBasePacket {
 	@Override
 	public String getType() {
 		return S_ADD_ITEM;
+	}
+
+	@Override
+	public String getParams() {
+		return "itemObjId=" + _itemObjId + ", name=\"" + _itemName + "\", count=" + _count + ", enchant=" + _enchantLevel;
 	}
 }

@@ -23,9 +23,13 @@ public class S_SPMR extends ServerBasePacket {
 	private static final String S_SPMR = "[S] S_S_SPMR";
 
 	private byte[] _byte = null;
+	private final String _charName;
+	private int _sp;
+	private int _mr;
 
 	/** 更新魔防Mr以及魔攻Sp */
 	public S_SPMR(L1PcInstance pc) {
+		_charName = pc.getName();
 		buildPacket(pc);
 	}
 
@@ -33,12 +37,14 @@ public class S_SPMR extends ServerBasePacket {
 		writeC(Opcodes.S_OPCODE_SPMR);
 		// ウィズダムポーションのSPはS_SkillBrave送信時に更新されるため差し引いておく
 		if (pc.hasSkillEffect(STATUS_WISDOM_POTION)) {
-			writeC(pc.getSp() - pc.getTrueSp() - 2); // 装備増加したSP
+			_sp = pc.getSp() - pc.getTrueSp() - 2;
 		}
 		else {
-			writeC(pc.getSp() - pc.getTrueSp()); // 装備増加したSP
+			_sp = pc.getSp() - pc.getTrueSp();
 		}
-		writeH(pc.getTrueMr() - pc.getBaseMr()); // 装備や魔法で増加したMR
+		_mr = pc.getTrueMr() - pc.getBaseMr();
+		writeC(_sp); // 装備増加したSP
+		writeH(_mr); // 装備や魔法で増加したMR
 	}
 
 	@Override
@@ -52,5 +58,10 @@ public class S_SPMR extends ServerBasePacket {
 	@Override
 	public String getType() {
 		return S_SPMR;
+	}
+
+	@Override
+	public String getParams() {
+		return "name=\"" + _charName + "\", sp=" + _sp + ", mr=" + _mr;
 	}
 }

@@ -36,15 +36,15 @@ public class L1WorldMap {
 
 	private L1WorldMap() {
 		PerformanceTimer timer = new PerformanceTimer();
-		System.out.print("loading map...");
+		_log.info("載入地圖資料...");
 
 		try {
 			_maps = MapReader.getDefaultReader().read();
 			if (_maps == null) {
 				throw new RuntimeException("地圖檔案讀取失敗...");
 			}
-		} catch (FileNotFoundException e) {  
-			System.out.println("提示: 地圖檔案缺失，請檢查330_maps.zip是否尚未解壓縮。"); 
+		} catch (FileNotFoundException e) {
+			_log.severe("地圖檔案缺失，請檢查 330_maps.zip 是否尚未解壓縮");
 			System.exit(0);
 		} catch (Exception e) {
 			// 復帰不能
@@ -52,7 +52,7 @@ public class L1WorldMap {
 			System.exit(0);
 		}
 
-		System.out.println("OK! " + timer.get() + "ms");
+		_log.info("地圖資料載入完成, 耗時 " + timer.get() + " ms");
 	}
 
 	/**

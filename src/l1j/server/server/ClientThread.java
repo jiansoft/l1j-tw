@@ -492,9 +492,9 @@ public class ClientThread implements Runnable, PacketOutput {
 
 		try {
 			_log.info("(" + _hostname + ") 連結到伺服器。");
-			System.out.println("使用了 " + SystemUtil.getUsedMemoryMB() + "MB 的記憶體");
-			System.out.println("等待客戶端連接...");
-			
+			_log.info("使用了 " + SystemUtil.getUsedMemoryMB() + "MB 的記憶體");
+			_log.info("等待客戶端連接...");
+
 			ClientThreadObserver observer = new ClientThreadObserver(Config.AUTOMATIC_KICK * 60 * 1000); // 自動斷線的時間（單位:毫秒）
 
 			// 是否啟用自動踢人
@@ -517,6 +517,13 @@ public class ClientThread implements Runnable, PacketOutput {
 				// ByteArrayUtil(data).dumpToString());
 
 				int opcode = data[0] & 0xFF;
+
+				// 記錄收到的 opcode（透過 LogPacketOpcode 配置開啟）
+				if (Config.LOG_PACKET_OPCODE) {
+					_log.info("收到封包 opcode: 0x" + Integer.toHexString(opcode).toUpperCase()
+							+ " (" + opcode + ") " + Opcodes.getClientOpcodeName(opcode)
+							+ " 來自: " + _hostname);
+				}
 
 				// 處理多重登入
 				if (opcode == Opcodes.C_OPCODE_BEANFUNLOGINPACKET || opcode == Opcodes.C_OPCODE_CHANGECHAR) {
@@ -596,9 +603,8 @@ public class ClientThread implements Runnable, PacketOutput {
 		_log.fine("Server thread[C] stopped");
 		if (_kick < 1) {
 			_log.info("(" + getAccountName() + ":" + _hostname + ")連線終止。");
-			System.out.println("使用了 " + SystemUtil.getUsedMemoryMB()
-					+ "MB 的記憶體");
-			System.out.println("等待客戶端連接...");
+			_log.info("使用了 " + SystemUtil.getUsedMemoryMB() + "MB 的記憶體");
+			_log.info("等待客戶端連接...");
 			if (getAccount() != null) {
 				Account.online(getAccount(), false);
 			}
@@ -749,6 +755,7 @@ public class ClientThread implements Runnable, PacketOutput {
 					try {
 						_handler.handlePacket(data, _activeChar);
 					} catch (Exception e) {
+						_log.log(Level.SEVERE, "HcPacket 處理封包時發生異常", e);
 					}
 				} else {
 					try {
@@ -902,17 +909,45 @@ public class ClientThread implements Runnable, PacketOutput {
 		synchronized (this) {
 			try {
 				byte content[] = packet.getContent();
+				int length = content.length + 2;
+
+				// 過濾頻繁的封包日誌
+				String packetType = packet.getType();
+				if (!packetType.contains("S_MPUpdate") && !packetType.contains("S_GameTime")) {
+					String params = packet.getParams();
+					_log.info("ClientThread.sendPacket: 發送封包 " + packetType + " 到 " + _ip + " length=" + length +
+							(params != null ? " {" + params + "}" : ""));
+				}
+
 				byte data[] = Arrays.copyOf(content, content.length);
 				_cipher.encrypt(data);
-				int length = data.length + 2;
 
 				_out.write(length & 0xff);
 				_out.write(length >> 8 & 0xff);
 				_out.write(data);
 				_out.flush();
 			} catch (Exception e) {
+				_log.severe("ClientThread.sendPacket: 發送封包失敗 " + packet.getType() + " error=" + e.getMessage());
 			}
 		}
+	}
+
+	/**
+	 * 將 byte 陣列轉換為十六進位字串
+	 */
+	private String toHexString(byte[] data) {
+		if (data == null || data.length == 0) {
+			return "(empty)";
+		}
+		StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < data.length; i++) {
+			sb.append(String.format("%02X ", data[i] & 0xFF));
+			// 每 16 bytes 換行
+			if ((i + 1) % 16 == 0 && i < data.length - 1) {
+				sb.append("\n              ");
+			}
+		}
+		return sb.toString().trim();
 	}
 
 	/**

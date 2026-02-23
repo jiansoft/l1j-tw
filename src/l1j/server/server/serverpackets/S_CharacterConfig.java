@@ -33,8 +33,11 @@ public class S_CharacterConfig extends ServerBasePacket {
 	private static Logger _log = Logger.getLogger(S_CharacterConfig.class.getName());
 	private static final String S_CHARACTER_CONFIG = "[S] S_CharacterConfig";
 	private byte[] _byte = null;
+	private final int _objectId;
+	private int _length;
 
 	public S_CharacterConfig(int objectId) {
+		_objectId = objectId;
 		buildPacket(objectId);
 	}
 
@@ -61,6 +64,7 @@ public class S_CharacterConfig extends ServerBasePacket {
 			SQLUtil.close(con);
 		}
 
+		_length = length;
 		if (length != 0) {
 			writeC(Opcodes.S_OPCODE_SKILLICONGFX);
 			writeC(S_PacketBox.CHARACTER_CONFIG);
@@ -80,5 +84,10 @@ public class S_CharacterConfig extends ServerBasePacket {
 	@Override
 	public String getType() {
 		return S_CHARACTER_CONFIG;
+	}
+
+	@Override
+	public String getParams() {
+		return "objectId=" + _objectId + ", dataLength=" + _length;
 	}
 }

@@ -18,13 +18,16 @@ import l1j.server.server.Opcodes;
 import l1j.server.server.model.gametime.L1GameTimeClock;
 
 public class S_GameTime extends ServerBasePacket {
+	private final int _time;
+
 	public S_GameTime(int time) {
+		_time = time;
 		buildPacket(time);
 	}
 
 	public S_GameTime() {
-		int time = L1GameTimeClock.getInstance().currentTime().getSeconds();
-		buildPacket(time);
+		_time = L1GameTimeClock.getInstance().currentTime().getSeconds();
+		buildPacket(_time);
 	}
 
 	private void buildPacket(int time) {
@@ -35,5 +38,10 @@ public class S_GameTime extends ServerBasePacket {
 	@Override
 	public byte[] getContent() {
 		return getBytes();
+	}
+
+	@Override
+	public String getParams() {
+		return "time=" + _time;
 	}
 }

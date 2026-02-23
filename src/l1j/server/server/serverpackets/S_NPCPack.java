@@ -34,8 +34,16 @@ public class S_NPCPack extends ServerBasePacket {
 	private static final int HIDDEN_STATUS_FLY = 2;
 
 	private byte[] _byte = null;
+	private final int _npcId;
+	private final String _name;
+	private final int _x;
+	private final int _y;
 
 	public S_NPCPack(L1NpcInstance npc) {
+		_npcId = npc.getId();
+		_name = npc.getNameId();
+		_x = npc.getX();
+		_y = npc.getY();
 		writeC(Opcodes.S_OPCODE_CHARPACK);
 		writeH(npc.getX());
 		writeH(npc.getY());
@@ -120,4 +128,8 @@ public class S_NPCPack extends ServerBasePacket {
 		return S_NPC_PACK;
 	}
 
+	@Override
+	public String getParams() {
+		return "id=" + _npcId + ", name=\"" + _name + "\", x=" + _x + ", y=" + _y;
+	}
 }

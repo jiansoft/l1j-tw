@@ -20,6 +20,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import l1j.server.L1DatabaseFactory;
 import l1j.server.server.datatables.CharacterTable;
@@ -38,7 +40,8 @@ import l1j.server.server.utils.SQLUtil;
 public class S_PledgeRecommendation extends ServerBasePacket{
 
 	private static final String S_PledgeRecommendation = "[S] S_PledgeRecommendation";
-	
+	private static Logger _log = Logger.getLogger(S_PledgeRecommendation.class.getName());
+
 	private byte[] _byte = null;
 	
 	
@@ -140,7 +143,7 @@ public class S_PledgeRecommendation extends ServerBasePacket{
 					writeD(clan.getEmblemId()); // 盟徽編號
 				}
 			}  catch (SQLException e) {
-				System.out.println(e.getLocalizedMessage());
+				_log.log(Level.SEVERE, "S_PledgeRecommendation SQL 錯誤", e);
 			} finally {
 				SQLUtil.close(rs);
 				SQLUtil.close(pstm);
@@ -182,7 +185,7 @@ public class S_PledgeRecommendation extends ServerBasePacket{
 					}
 				}
 			}  catch (SQLException e) {
-				System.out.println(e.getLocalizedMessage());
+				_log.log(Level.SEVERE, "S_PledgeRecommendation SQL 錯誤", e);
 			} finally {
 				SQLUtil.close(rs);
 				SQLUtil.close(pstm);
@@ -229,9 +232,9 @@ public class S_PledgeRecommendation extends ServerBasePacket{
 						writeH(pc.getLevel());              // 角色 等級
 					}
 				} catch (SQLException e) {
-					System.out.println(e.getLocalizedMessage());
+					_log.log(Level.SEVERE, "S_PledgeRecommendation SQL 錯誤", e);
 				} catch (Exception e) {
-					e.printStackTrace();
+					_log.log(Level.SEVERE, "S_PledgeRecommendation 發生錯誤", e);
 				} finally {
 					SQLUtil.close(rs);
 					SQLUtil.close(pstm);

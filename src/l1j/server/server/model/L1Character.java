@@ -49,6 +49,8 @@ import l1j.server.server.utils.IntRange;
 import l1j.server.server.utils.collections.Lists;
 import l1j.server.server.utils.collections.Maps;
 
+import java.util.logging.Logger;
+
 // Referenced classes of package l1j.server.server.model:
 // L1Object, Die, L1PcInstance, L1MonsterInstance,
 // L1World, ActionFailed
@@ -100,6 +102,7 @@ import l1j.server.server.utils.collections.Maps;
 public class L1Character extends L1Object {
 
 	private static final long serialVersionUID = 1L;
+	private static final Logger _log = Logger.getLogger(L1Character.class.getName());
 
 	/** 中毒狀態物件，管理角色的中毒效果 */
 	private L1Poison _poison = null;
@@ -340,8 +343,8 @@ public class L1Character extends L1Object {
 	public void broadcastPacket(ServerBasePacket packet) {
 		for (L1PcInstance pc : L1World.getInstance().getVisiblePlayer(this)) {
 			// 旅館內判斷
-			if (pc.getMapId() < 16384 || pc.getMapId() > 25088 || pc.getInnKeyId() == getInnKeyId()) 
-				pc.sendPackets(packet);			
+			if (pc.getMapId() < 16384 || pc.getMapId() > 25088 || pc.getInnKeyId() == getInnKeyId())
+				pc.sendPackets(packet);
 		}
 	}
 

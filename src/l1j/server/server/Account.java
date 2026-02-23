@@ -292,6 +292,7 @@ public class Account {
 	 * @param i isOnline?
 	 */
 	public synchronized static void online(Account account, boolean i) {
+		_log.info("Account.online: 設置帳號在線狀態 name=" + account.getName() + " online=" + i);
 		Connection con = null;
 		PreparedStatement pstm = null;
 		try {
@@ -302,7 +303,9 @@ public class Account {
 			pstm.setString(2, account.getName());
 			pstm.execute();
 			account.setOnline(i);
+			_log.info("Account.online: 設置完成 name=" + account.getName() + " online=" + i);
 		} catch (SQLException e) {
+			_log.log(Level.SEVERE, "Account.online: 發生異常 name=" + account.getName(), e);
 		} finally {
 			SQLUtil.close(pstm);
 			SQLUtil.close(con);
@@ -376,24 +379,29 @@ public class Account {
 
 	/**
 	 * 確認輸入的密碼與資料庫中的密碼是否相同
-	 * 
+	 *
 	 * @param rawPassword
 	 *            明文密碼
 	 * @return boolean
 	 */
 	public boolean validatePassword(final String rawPassword) {
+		_log.info("Account.validatePassword: 開始驗證密碼 name=" + _name);
 		// 認證成功後如果再度認證就判斷為失敗
 		if (_isValid) {
+			_log.info("Account.validatePassword: 帳號已驗證過，拒絕重複驗證 name=" + _name);
 			return false;
 		}
 		try {
 			_isValid = _password.equals(encodePassword(rawPassword));
 			if (_isValid) {
+				_log.info("Account.validatePassword: 密碼驗證成功 name=" + _name);
 				_password = null; // 認證成功後就將記憶體中的密碼清除
+			} else {
+				_log.info("Account.validatePassword: 密碼驗證失敗 name=" + _name);
 			}
 			return _isValid;
 		} catch (Exception e) {
-			_log.log(Level.SEVERE, e.getLocalizedMessage(), e);
+			_log.log(Level.SEVERE, "Account.validatePassword: 發生異常 name=" + _name, e);
 		}
 		return false;
 	}

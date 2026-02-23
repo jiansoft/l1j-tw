@@ -689,6 +689,7 @@ public class PacketHandler {
 				break;
 
 			case C_OPCODE_MOVECHAR:
+				System.out.println("PacketHandler: 處理 C_OPCODE_MOVECHAR");
 				new C_MoveChar(abyte0, _client);
 				break;
 

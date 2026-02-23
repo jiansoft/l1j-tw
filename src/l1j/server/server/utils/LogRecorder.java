@@ -18,6 +18,8 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import l1j.server.server.model.TimeInform;
 import l1j.server.server.model.Instance.L1ItemInstance;
@@ -25,10 +27,12 @@ import l1j.server.server.model.Instance.L1PcInstance;
 
 /**
  * Log Recorder 紀錄存取
- * 
+ *
  * @author ibm
  */
 public class LogRecorder {
+	private static Logger _log = Logger.getLogger(LogRecorder.class.getName());
+
 	/* BufferedWriter */
 	static BufferedWriter out;
 
@@ -39,7 +43,7 @@ public class LogRecorder {
 			out.write(messenge + "\r\n");
 			out.close();
 		} catch (IOException e) {
-			System.out.println("以下是錯誤訊息: " + e.getMessage());
+			_log.log(Level.SEVERE, "LogRecorder 寫入失敗", e);
 		}
 	}
 
@@ -64,7 +68,7 @@ public class LogRecorder {
 					+ ", 來自玩家: "+ pc.getName() + ", " + messenge + "。" + "\r\n");
 			out.close();
 		} catch (IOException e) {
-			System.out.println("以下是錯誤訊息: " + e.getMessage());
+			_log.log(Level.SEVERE, "LogRecorder 寫入失敗", e);
 		}
 	}
 
@@ -90,7 +94,7 @@ public class LogRecorder {
 			out.close();
 
 		} catch (IOException e) {
-			System.out.println("以下是錯誤訊息: " + e.getMessage());
+			_log.log(Level.SEVERE, "LogRecorder 寫入失敗", e);
 		}
 	}
 
@@ -115,7 +119,7 @@ public class LogRecorder {
 					+ pc.getName() + ", " + messenge + "。" + "\r\n");
 			out.close();
 		} catch (IOException e) {
-			System.out.println("以下是錯誤訊息: " + e.getMessage());
+			_log.log(Level.SEVERE, "LogRecorder 寫入失敗", e);
 		}
 	}
 
@@ -150,7 +154,7 @@ public class LogRecorder {
 					+ "的 " + receiver.getName()+ " 玩家。" + "\r\n");
 			out.close();
 		} catch (IOException e) {
-			System.out.println("以下是錯誤訊息: " + e.getMessage());
+			_log.log(Level.SEVERE, "LogRecorder 寫入失敗", e);
 		}
 	}
 
@@ -177,7 +181,7 @@ public class LogRecorder {
 					+ "\r\n");
 			out.close();
 		} catch (IOException e) {
-			System.out.println("以下是錯誤訊息: " + e.getMessage());
+			_log.log(Level.SEVERE, "LogRecorder 寫入失敗", e);
 		}
 	}
 
@@ -209,7 +213,7 @@ public class LogRecorder {
 					+ "\r\n");
 			out.close();
 		} catch (IOException e) {
-			System.out.println("以下是錯誤訊息: " + e.getMessage());
+			_log.log(Level.SEVERE, "LogRecorder 寫入失敗", e);
 		}
 	}
 }

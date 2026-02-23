@@ -21,7 +21,12 @@ import l1j.server.server.Opcodes;
 
 public class S_MapID extends ServerBasePacket {
 
+	private final int _mapId;
+	private final boolean _isUnderwater;
+
 	public S_MapID(int mapid, boolean isUnderwater) {
+		_mapId = mapid;
+		_isUnderwater = isUnderwater;
 		writeC(Opcodes.S_OPCODE_MAPID);
 		writeH(mapid);
 		writeC(isUnderwater ? 1 : 0); // 水底:1
@@ -33,5 +38,10 @@ public class S_MapID extends ServerBasePacket {
 	@Override
 	public byte[] getContent() {
 		return getBytes();
+	}
+
+	@Override
+	public String getParams() {
+		return "mapId=" + _mapId + ", underwater=" + _isUnderwater;
 	}
 }

@@ -21,6 +21,9 @@ import l1j.server.server.utils.IntRange;
 public class S_HPUpdate extends ServerBasePacket {
 	private static final IntRange hpRange = new IntRange(1, 32767);
 
+	private int _currentHp;
+	private int _maxHp;
+
 	public S_HPUpdate(int currentHp, int maxHp) {
 		buildPacket(currentHp, maxHp);
 	}
@@ -30,6 +33,8 @@ public class S_HPUpdate extends ServerBasePacket {
 	}
 
 	public void buildPacket(int currentHp, int maxHp) {
+		_currentHp = currentHp;
+		_maxHp = maxHp;
 		writeC(Opcodes.S_OPCODE_HPUPDATE);
 		writeH(hpRange.ensure(currentHp));
 		writeH(hpRange.ensure(maxHp));
@@ -40,5 +45,10 @@ public class S_HPUpdate extends ServerBasePacket {
 	@Override
 	public byte[] getContent() {
 		return getBytes();
+	}
+
+	@Override
+	public String getParams() {
+		return "currentHp=" + _currentHp + ", maxHp=" + _maxHp;
 	}
 }

@@ -656,7 +656,7 @@ public class ThreadPoolManager {
 			_ioPacketsThreadPool.shutdown();
 			_generalThreadPool.shutdown();
 			_aiThreadPool.shutdown();
-			System.out.println("All ThreadPools are now stoped");
+			_log.info("所有執行緒池已停止");
 
 		} catch (InterruptedException e) {
 			_log.log(Level.SEVERE, e.getLocalizedMessage(), e);

@@ -17,7 +17,14 @@ package l1j.server.server.serverpackets;
 import l1j.server.server.Opcodes;
 
 public class S_MPUpdate extends ServerBasePacket {
+	private final int _currentMp;
+	private final int _maxMp;
+
 	public S_MPUpdate(int currentmp, int maxmp) {
+		// 記錄參數供日誌使用
+		_currentMp = currentmp;
+		_maxMp = maxmp;
+
 		writeC(Opcodes.S_OPCODE_MPUPDATE);
 
 		if (currentmp < 0) {
@@ -35,15 +42,15 @@ public class S_MPUpdate extends ServerBasePacket {
 		} else {
 			writeH(maxmp);
 		}
-
-		// writeH(currentmp);
-		// writeH(maxmp);
-		// writeC(0);
-		// writeD(GameTimeController.getInstance().getGameTime());
 	}
 
 	@Override
 	public byte[] getContent() {
 		return getBytes();
+	}
+
+	@Override
+	public String getParams() {
+		return "currentMp=" + _currentMp + ", maxMp=" + _maxMp;
 	}
 }

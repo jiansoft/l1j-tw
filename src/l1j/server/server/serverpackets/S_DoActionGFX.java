@@ -17,13 +17,17 @@ package l1j.server.server.serverpackets;
 import l1j.server.server.Opcodes;
 
 public class S_DoActionGFX extends ServerBasePacket {
-	private static final String S_DOACTIONGFX = "[S] S_SkillGFX";
+	private static final String S_DOACTIONGFX = "[S] S_DoActionGFX";
 
 	public static int ACTION_MAGIC = 0x16;
 
 	private byte[] _byte = null;
+	private int _objectId;
+	private int _actionId;
 
 	public S_DoActionGFX(int objectId, int actionId) {
+		_objectId = objectId;
+		_actionId = actionId;
 		writeC(Opcodes.S_OPCODE_DOACTIONGFX);
 		writeD(objectId);
 		writeC(actionId);
@@ -40,5 +44,10 @@ public class S_DoActionGFX extends ServerBasePacket {
 	@Override
 	public String getType() {
 		return S_DOACTIONGFX;
+	}
+
+	@Override
+	public String getParams() {
+		return "objectId=" + _objectId + ", actionId=" + _actionId;
 	}
 }

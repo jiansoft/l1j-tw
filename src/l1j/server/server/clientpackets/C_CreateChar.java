@@ -100,14 +100,29 @@ public class C_CreateChar extends ClientBasePacket {
 		}
 		
 		pc.setName(name);
-		pc.setType(readC());
-		pc.set_sex(readC());
-		pc.addBaseStr((byte) readC());
-		pc.addBaseDex((byte) readC());
-		pc.addBaseCon((byte) readC());
-		pc.addBaseWis((byte) readC());
-		pc.addBaseCha((byte) readC());
-		pc.addBaseInt((byte) readC());
+		int type = readC();
+		int sex = readC();
+		int rawStr = readC();
+		int rawDex = readC();
+		int rawCon = readC();
+		int rawWis = readC();
+		int rawCha = readC();
+		int rawInt = readC();
+
+		_log.info("C_CreateChar: 收到封包資料 name=" + name +
+				" type=" + type + " sex=" + sex +
+				" rawStats=[STR=" + rawStr + " DEX=" + rawDex + " CON=" + rawCon +
+				" WIS=" + rawWis + " CHA=" + rawCha + " INT=" + rawInt + "]" +
+				" rawTotal=" + (rawStr + rawDex + rawCon + rawWis + rawCha + rawInt));
+
+		pc.setType(type);
+		pc.set_sex(sex);
+		pc.addBaseStr((byte) rawStr);
+		pc.addBaseDex((byte) rawDex);
+		pc.addBaseCon((byte) rawCon);
+		pc.addBaseWis((byte) rawWis);
+		pc.addBaseCha((byte) rawCha);
+		pc.addBaseInt((byte) rawInt);
 
 		boolean isStatusError = false;
 		int originalStr = ORIGINAL_STR[pc.getType()];
@@ -129,10 +144,27 @@ public class C_CreateChar extends ClientBasePacket {
 		int statusAmount = pc.getDex() + pc.getCha() + pc.getCon() + pc.getInt() + pc.getStr() + pc.getWis();
 
 		if ((statusAmount != 75) || isStatusError) {
-			_log.finest("Character have wrong value");
+			_log.warning("C_CreateChar: 角色創建點數異常" +
+					" name=" + name +
+					" type=" + pc.getType() +
+					" sex=" + pc.get_sex() +
+					" statusAmount=" + statusAmount +
+					" isStatusError=" + isStatusError +
+					" | 客戶端屬性: STR=" + pc.getBaseStr() +
+					" DEX=" + pc.getBaseDex() +
+					" CON=" + pc.getBaseCon() +
+					" WIS=" + pc.getBaseWis() +
+					" CHA=" + pc.getBaseCha() +
+					" INT=" + pc.getBaseInt() +
+					" | 期望最低值: STR=" + originalStr +
+					" DEX=" + originalDex +
+					" CON=" + originalCon +
+					" WIS=" + originalWis +
+					" CHA=" + originalCha +
+					" INT=" + originalInt +
+					" 可分配點數=" + originalAmount);
 			S_CharCreateStatus s_charcreatestatus3 = new S_CharCreateStatus(S_CharCreateStatus.REASON_WRONG_AMOUNT);
 			client.sendPacket(s_charcreatestatus3);
-			System.out.println("點數ERROR");
 			return;
 		}
 

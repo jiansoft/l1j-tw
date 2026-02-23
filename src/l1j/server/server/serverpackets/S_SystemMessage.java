@@ -71,4 +71,9 @@ public class S_SystemMessage extends ServerBasePacket {
 	public String getType() {
 		return S_SYSTEM_MESSAGE;
 	}
+
+	@Override
+	public String getParams() {
+		return "msg=\"" + _msg + "\"";
+	}
 }

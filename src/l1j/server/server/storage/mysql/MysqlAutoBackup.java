@@ -22,6 +22,8 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.StringTokenizer;
 import java.util.TimerTask;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import l1j.server.Config;
 import l1j.server.L1Message;
@@ -35,6 +37,7 @@ import l1j.server.server.utils.UnZipUtil;
  * @author L1J-TW-99nets
  */
 public class MysqlAutoBackup extends TimerTask {
+	private static Logger _log = Logger.getLogger(MysqlAutoBackup.class.getName());
 	private static MysqlAutoBackup _instance;
 	private static final String Username = Config.DB_LOGIN;
 	private static final String Passwords = Config.DB_PASSWORD;
@@ -81,7 +84,7 @@ public class MysqlAutoBackup extends TimerTask {
 	public void run() {
 		if (os == "Windows") {
 			try {
-				System.out.println("(MYSQL is backing now...)");
+				_log.info("MySQL 資料庫備份中...");
 				/**
 				 * mysqldump --user=[Username] --password=[password]
 				 * [databasename] > [backupfile.sql]
@@ -101,17 +104,17 @@ public class MysqlAutoBackup extends TimerTask {
 						LogRecorder.writeLog(msg);
 					}
 				} finally {
-					System.out.println("(MYSQL is backed over.)" + "\n" + L1Message.waitingforuser);// 等待玩家連線
+					_log.info("MySQL 資料庫備份完成。" + L1Message.waitingforuser);// 等待玩家連線
 				}
 			} catch (IOException ioe) {
-				ioe.printStackTrace();
+				_log.log(Level.SEVERE, "MySQL 備份 IO 錯誤", ioe);
 
 			} catch (Exception e) {
-				e.printStackTrace();
+				_log.log(Level.SEVERE, "MySQL 備份錯誤", e);
 			}
 		} else if (os == "Linux") {
 			try {
-				System.out.println("(MYSQL is backing now...)");
+				_log.info("MySQL 資料庫備份中...");
 				/**
 				 * mysqldump --user=[Username] --password=[password]
 				 * [databasename] > [backupfile.sql]
@@ -126,27 +129,27 @@ public class MysqlAutoBackup extends TimerTask {
 					Runtime rt = Runtime.getRuntime();
 					rt.exec(exeText.toString());
 				} finally {
-					System.out.println("(MYSQL is backed over.)" + "\n" + L1Message.waitingforuser);// 等待玩家連線
+					_log.info("MySQL 資料庫備份完成。" + L1Message.waitingforuser);// 等待玩家連線
 				}
 			} catch (IOException ioe) {
-				ioe.printStackTrace();
+				_log.log(Level.SEVERE, "MySQL 備份 IO 錯誤", ioe);
 
 			} catch (Exception e) {
-				e.printStackTrace();
+				_log.log(Level.SEVERE, "MySQL 備份錯誤", e);
 			}
 		}
 	}
-	
+
 	/**
 	 * 負責檢查Gzip.exe是否安裝
 	 */
 	private static void checkGzip(String SystemRoot){
-		System.out.println("[MySQL]checking gzip.exe is installed or not...");
+		_log.info("[MySQL] 檢查 gzip.exe 是否安裝...");
 		File gzip = new File(SystemRoot+"\\gzip.exe");
 		if (gzip.exists()) {
-			System.out.println("mysql auto backup is running...ok!");
+			_log.info("MySQL 自動備份功能已啟用");
 		} else {
-			System.err.println("[MySQL]Gzip.exe不存在，系統正在處理中...");
+			_log.warning("[MySQL] Gzip.exe 不存在，系統正在處理中...");
 			gzip = new File(".\\docs\\gzip124xN.zip");
 			UnZipUtil.unZip(gzip.getAbsolutePath(), SystemRoot);
 		}

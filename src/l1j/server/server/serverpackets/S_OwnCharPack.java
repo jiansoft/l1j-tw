@@ -33,8 +33,14 @@ public class S_OwnCharPack extends ServerBasePacket {
 	private static final int STATUS_GHOST = 128;
 
 	private byte[] _byte = null;
+	private final String _charName;
+	private final int _x;
+	private final int _y;
 
 	public S_OwnCharPack(L1PcInstance pc) {
+		_charName = pc.getName();
+		_x = pc.getX();
+		_y = pc.getY();
 		buildPacket(pc);
 	}
 
@@ -108,4 +114,8 @@ public class S_OwnCharPack extends ServerBasePacket {
 		return S_OWN_CHAR_PACK;
 	}
 
+	@Override
+	public String getParams() {
+		return "name=\"" + _charName + "\", x=" + _x + ", y=" + _y;
+	}
 }

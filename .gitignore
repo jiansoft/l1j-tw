@@ -82,6 +82,12 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+# Dependencies (managed by Gradle)
+lib/
+
+# Keep local-libs/ in version control (contains JARs not available on Maven Central)
+!local-libs/
+
 # Ant
 /build/
 

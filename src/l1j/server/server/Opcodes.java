@@ -14,6 +14,10 @@
  */
 package l1j.server.server;
 
+import java.lang.reflect.Field;
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * 網路封包操作碼 (Opcodes) 定義類別
  *
@@ -77,10 +81,41 @@ package l1j.server.server;
  */
 public class Opcodes {
 
+	/** 客戶端封包 opcode 名稱快取 */
+	private static final Map<Integer, String> CLIENT_OPCODE_NAMES = new HashMap<>();
+
+	static {
+		// 使用反射建立 opcode 到名稱的映射
+		for (Field field : Opcodes.class.getDeclaredFields()) {
+			if (field.getName().startsWith("C_OPCODE_")) {
+				try {
+					int value = field.getInt(null);
+					// 只快取有效的 opcode (0-255)
+					if (value >= 0 && value <= 255) {
+						String name = field.getName().substring(9); // 移除 "C_OPCODE_" 前綴
+						CLIENT_OPCODE_NAMES.put(value, name);
+					}
+				} catch (IllegalAccessException e) {
+					// 忽略
+				}
+			}
+		}
+	}
+
 	/**
 	 * 建構式
 	 */
 	public Opcodes() {
+	}
+
+	/**
+	 * 取得客戶端封包 opcode 的名稱
+	 *
+	 * @param opcode 封包操作碼
+	 * @return opcode 名稱，如果找不到則回傳 "UNKNOWN"
+	 */
+	public static String getClientOpcodeName(int opcode) {
+		return CLIENT_OPCODE_NAMES.getOrDefault(opcode, "UNKNOWN");
 	}
 	
 	/**

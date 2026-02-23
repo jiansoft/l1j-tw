@@ -145,7 +145,6 @@ public class L1Shop {
 		}
 		// 購入できるかチェック
 		if (!pc.getInventory().checkItem(L1ItemId.ADENA, price)) {
-			System.out.println(price);
 			// \f1アデナが不足しています。
 			pc.sendPackets(new S_ServerMessage(189));
 			return false;

@@ -85,12 +85,12 @@ public class NpcActionTable {
 	public static void load() {
 		try {
 			PerformanceTimer timer = new PerformanceTimer();
-			System.out.print("loading npcaction...");
+			_log.info("載入 NPC 動作表...");
 			_instance = new NpcActionTable();
-			System.out.println("OK! " + timer.get() + "ms");
+			_log.info("NPC 動作表載入完成, 耗時 " + timer.get() + " ms");
 		}
 		catch (Exception e) {
-			_log.log(Level.SEVERE, "NpcActionを読み込めませんでした", e);
+			_log.log(Level.SEVERE, "NPC 動作表載入失敗", e);
 			System.exit(0);
 		}
 	}

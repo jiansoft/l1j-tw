@@ -25,11 +25,13 @@ import l1j.server.server.model.Instance.L1ItemInstance;
 public class S_InvList extends ServerBasePacket {
 
 	private static final String S_INV_LIST = "[S] S_InvList";
+	private final int _itemCount;
 
 	/**
 	 * インベントリにアイテムを複数個まとめて追加する。
 	 */
 	public S_InvList(List<L1ItemInstance> items) {
+		_itemCount = items.size();
 		writeC(Opcodes.S_OPCODE_INVLIST);
 		writeC(items.size());               // 物品數量
 		
@@ -87,5 +89,10 @@ public class S_InvList extends ServerBasePacket {
 	@Override
 	public String getType() {
 		return S_INV_LIST;
+	}
+
+	@Override
+	public String getParams() {
+		return "itemCount=" + _itemCount;
 	}
 }

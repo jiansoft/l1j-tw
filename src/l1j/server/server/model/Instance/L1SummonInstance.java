@@ -19,6 +19,7 @@ import static l1j.server.server.model.skill.L1SkillId.FOG_OF_SLEEPING;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ScheduledFuture;
+import java.util.logging.Logger;
 
 import l1j.server.server.ActionCodes;
 import l1j.server.server.GeneralThreadPool;
@@ -45,6 +46,7 @@ import l1j.server.server.utils.Random;
 
 public class L1SummonInstance extends L1NpcInstance {
 	private static final long serialVersionUID = 1L;
+	private static Logger _log = Logger.getLogger(L1SummonInstance.class.getName());
 
 	private ScheduledFuture<?> _summonFuture;
 
@@ -255,7 +257,7 @@ public class L1SummonInstance extends L1NpcInstance {
 			}
 		} else if (!isDead()) // 念のため
 		{
-			System.out.println("警告：サモンのＨＰ減少処理が正しく行われていない箇所があります。※もしくは最初からＨＰ０");
+			_log.warning("警告：召喚獸的HP減少處理有誤，或HP一開始就是0");
 			Death(attacker);
 		}
 	}

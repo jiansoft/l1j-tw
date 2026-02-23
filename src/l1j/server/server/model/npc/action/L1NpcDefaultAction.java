@@ -40,7 +40,7 @@ public class L1NpcDefaultAction {
 				action = new Action();
 				_dataMap.put(gfxid[i], action);
 			} else {
-				System.out.println("重複編號：" + gfxid[i]);
+				_log.warning("L1NpcDefaultAction 重複編號：" + gfxid[i]);
 				continue;
 			}
 
@@ -63,7 +63,7 @@ public class L1NpcDefaultAction {
 				action = new Action();
 				_dataMap.put(gfxid[i], action);
 			} else {
-				System.out.println("重複編號：" + gfxid[i]);
+				_log.warning("L1NpcDefaultAction 重複編號：" + gfxid[i]);
 				continue;
 			}
 
@@ -82,7 +82,7 @@ public class L1NpcDefaultAction {
 				action = new Action();
 				_dataMap.put(gfxid[i], action);
 			} else {
-				System.out.println("重複編號：" + gfxid[i]);
+				_log.warning("L1NpcDefaultAction 重複編號：" + gfxid[i]);
 				continue;
 			}
 
@@ -101,7 +101,7 @@ public class L1NpcDefaultAction {
 				action = new Action();
 				_dataMap.put(gfxid[i], action);
 			} else {
-				System.out.println("重複編號：" + gfxid[i]);
+				_log.warning("L1NpcDefaultAction 重複編號：" + gfxid[i]);
 				continue;
 			}
 
@@ -123,7 +123,7 @@ public class L1NpcDefaultAction {
 				action = new Action();
 				_dataMap.put(gfxid[i], action);
 			} else {
-				System.out.println("重複編號：" + gfxid[i]);
+				_log.warning("L1NpcDefaultAction 重複編號：" + gfxid[i]);
 				continue;
 			}
 
@@ -145,7 +145,7 @@ public class L1NpcDefaultAction {
 				action = new Action();
 				_dataMap.put(gfxid[i], action);
 			} else {
-				System.out.println("重複編號：" + gfxid[i]);
+				_log.warning("L1NpcDefaultAction 重複編號：" + gfxid[i]);
 				continue;
 			}
 
@@ -164,7 +164,7 @@ public class L1NpcDefaultAction {
 				action = new Action();
 				_dataMap.put(gfxid[i], action);
 			} else {
-				System.out.println("重複編號：" + gfxid[i]);
+				_log.warning("L1NpcDefaultAction 重複編號：" + gfxid[i]);
 				continue;
 			}
 
@@ -183,7 +183,7 @@ public class L1NpcDefaultAction {
 				action = new Action();
 				_dataMap.put(gfxid[i], action);
 			} else {
-				System.out.println("重複編號：" + gfxid[i]);
+				_log.warning("L1NpcDefaultAction 重複編號：" + gfxid[i]);
 				continue;
 			}
 
@@ -202,7 +202,7 @@ public class L1NpcDefaultAction {
 				action = new Action();
 				_dataMap.put(gfxid[i], action);
 			} else {
-				System.out.println("重複編號：" + gfxid[i]);
+				_log.warning("L1NpcDefaultAction 重複編號：" + gfxid[i]);
 				continue;
 			}
 
@@ -250,7 +250,7 @@ public class L1NpcDefaultAction {
 				action = new Action();
 				_dataMap.put(gfxid[i], action);
 			} else {
-				System.out.println("重複編號：" + gfxid[i]);
+				_log.warning("L1NpcDefaultAction 重複編號：" + gfxid[i]);
 				continue;
 			}
 

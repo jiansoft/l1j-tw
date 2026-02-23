@@ -2189,7 +2189,7 @@ public class L1PcInstance extends L1Character {
 			}
 		}
 		else if (!isDead()) { // 念のため
-			System.out.println("警告：プレイヤーのＨＰ減少処理が正しく行われていない箇所があります。※もしくは最初からＨＰ０");
+			_log.warning("警告：玩家的HP減少處理有誤，或HP一開始就是0");
 			death(attacker);
 		}
 	}
@@ -4150,8 +4150,12 @@ public class L1PcInstance extends L1Character {
 	 * @param state 恢復狀態常數（REGENSTATE_NONE、REGENSTATE_MOVE、REGENSTATE_ATTACK）
 	 */
 	public void setRegenState(int state) {
-		_mpRegen.setState(state);
-		_hpRegen.setState(state);
+		if (_mpRegen != null) {
+			_mpRegen.setState(state);
+		}
+		if (_hpRegen != null) {
+			_hpRegen.setState(state);
+		}
 	}
 
 	/**

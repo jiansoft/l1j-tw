@@ -140,7 +140,7 @@ public class AcceleratorChecker {
 				try {
 					Thread.sleep(10000);// 暫停十秒
 				} catch (Exception e) {
-					System.out.println(e.getLocalizedMessage());
+					_log.warning("AcceleratorChecker 執行緒中斷: " + e.getLocalizedMessage());
 				}
 				_pc.sendPackets(new S_Paralysis(S_Paralysis.TYPE_BIND, false));
 				break;
@@ -150,7 +150,7 @@ public class AcceleratorChecker {
 				try {
 					Thread.sleep(10000);// 暫停十秒
 				} catch (Exception e) {
-					System.out.println(e.getLocalizedMessage());
+					_log.warning("AcceleratorChecker 執行緒中斷: " + e.getLocalizedMessage());
 				}
 				L1Teleport.teleport(_pc, x, y, (short) mapid, 5, false);
 				break;
@@ -160,7 +160,7 @@ public class AcceleratorChecker {
 				try {
 					Thread.sleep(30000);// 暫停30秒
 				} catch (Exception e) {
-					System.out.println(e.getLocalizedMessage());
+					_log.warning("AcceleratorChecker 執行緒中斷: " + e.getLocalizedMessage());
 				}
 				L1Teleport.teleport(_pc, x, y, (short) mapid, 5, false);
 				break;

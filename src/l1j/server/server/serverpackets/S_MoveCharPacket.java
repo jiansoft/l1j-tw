@@ -26,17 +26,22 @@ public class S_MoveCharPacket extends ServerBasePacket {
 	private static final String _S__1F_MOVECHARPACKET = "[S] S_MoveCharPacket";
 
 	private byte[] _byte = null;
+	private final int _charId;
+	private final int _x;
+	private final int _y;
+	private final int _heading;
 
 	public S_MoveCharPacket(L1Character cha) {
-		int heading = cha.getHeading();
-		int x = cha.getX() - MoveUtil.MoveX(heading);
-		int y = cha.getY() - MoveUtil.MoveY(heading);
+		_charId = cha.getId();
+		_heading = cha.getHeading();
+		_x = cha.getX() - MoveUtil.MoveX(_heading);
+		_y = cha.getY() - MoveUtil.MoveY(_heading);
 
 		writeC(Opcodes.S_OPCODE_MOVEOBJECT);
-		writeD(cha.getId());
-		writeH(x);
-		writeH(y);
-		writeC(heading);
+		writeD(_charId);
+		writeH(_x);
+		writeH(_y);
+		writeC(_heading);
 		writeC(129);
 		writeD(0);
 	}
@@ -52,5 +57,10 @@ public class S_MoveCharPacket extends ServerBasePacket {
 	@Override
 	public String getType() {
 		return _S__1F_MOVECHARPACKET;
+	}
+
+	@Override
+	public String getParams() {
+		return "charId=" + _charId + ", x=" + _x + ", y=" + _y + ", heading=" + _heading;
 	}
 }

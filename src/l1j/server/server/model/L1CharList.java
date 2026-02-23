@@ -41,14 +41,28 @@ public class L1CharList {
 	private static Logger _log = Logger.getLogger(L1CharList.class.getName());
 
 	public L1CharList(ClientThread client) {
+		_log.info("L1CharList: 開始處理角色列表 account=" + client.getAccountName());
 		deleteCharacter(client); // 到達刪除期限，刪除角色
+		_log.info("L1CharList: 已處理過期角色刪除 account=" + client.getAccountName());
+
 		int amountOfChars = client.getAccount().countCharacters();
+		_log.info("L1CharList: 角色數量=" + amountOfChars + " account=" + client.getAccountName());
+
+		_log.info("L1CharList: 發送 S_CharAmount account=" + client.getAccountName());
 		client.sendPacket(new S_CharAmount(amountOfChars, client));
+
+		_log.info("L1CharList: 發送 S_CharSynAck(SYN) account=" + client.getAccountName());
 		client.sendPacket(new S_CharSynAck(S_CharSynAck.SYN));
+
 		if (amountOfChars > 0) {
+			_log.info("L1CharList: 發送角色封包 S_CharPacks account=" + client.getAccountName());
 			sendCharPacks(client);
 		}
+
+		_log.info("L1CharList: 發送 S_CharSynAck(ACK) account=" + client.getAccountName());
 		client.sendPacket(new S_CharSynAck(S_CharSynAck.ACK));
+
+		_log.info("L1CharList: 角色列表處理完成 account=" + client.getAccountName());
 	}
 
 	private void deleteCharacter(ClientThread client) {

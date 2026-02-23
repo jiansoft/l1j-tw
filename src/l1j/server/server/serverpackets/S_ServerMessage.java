@@ -36,29 +36,42 @@ public class S_ServerMessage extends ServerBasePacket {
 	public static final int YOUR_Are_Slowed = 29;
 
 	private byte[] _byte = null;
+	private final int _type;
+	private final String _msg1;
 
 	public S_ServerMessage(int type) {
+		_type = type;
+		_msg1 = null;
 		buildPacket(type, null, null, null, null, null, 0);
 	}
 
 	public S_ServerMessage(int type, String msg1) {
+		_type = type;
+		_msg1 = msg1;
 		buildPacket(type, msg1, null, null, null, null, 1);
 	}
 
 	public S_ServerMessage(int type, String msg1, String msg2) {
+		_type = type;
+		_msg1 = msg1;
 		buildPacket(type, msg1, msg2, null, null, null, 2);
 	}
 
 	public S_ServerMessage(int type, String msg1, String msg2, String msg3) {
+		_type = type;
+		_msg1 = msg1;
 		buildPacket(type, msg1, msg2, msg3, null, null, 3);
 	}
 
 	public S_ServerMessage(int type, String msg1, String msg2, String msg3, String msg4) {
+		_type = type;
+		_msg1 = msg1;
 		buildPacket(type, msg1, msg2, msg3, msg4, null, 4);
 	}
 
 	public S_ServerMessage(int type, String msg1, String msg2, String msg3, String msg4, String msg5) {
-
+		_type = type;
+		_msg1 = msg1;
 		buildPacket(type, msg1, msg2, msg3, msg4, msg5, 5);
 	}
 
@@ -123,5 +136,10 @@ public class S_ServerMessage extends ServerBasePacket {
 	@Override
 	public String getType() {
 		return S_SERVER_MESSAGE;
+	}
+
+	@Override
+	public String getParams() {
+		return "type=" + _type + (_msg1 != null ? ", msg1=\"" + _msg1 + "\"" : "");
 	}
 }

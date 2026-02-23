@@ -15,6 +15,7 @@
 package l1j.server.server;
 
 import java.util.Map;
+import java.util.logging.Logger;
 
 import l1j.server.server.model.Instance.L1PcInstance;
 import l1j.server.server.model.L1Trade;
@@ -68,6 +69,8 @@ import l1j.server.server.utils.collections.Maps;
  * @see AccountAlreadyLoginException
  */
 public class LoginController {
+	private static Logger _log = Logger.getLogger(LoginController.class.getName());
+
 	/** Singleton 實例 */
 	private static LoginController _instance;
 
@@ -205,21 +208,32 @@ public class LoginController {
 	 */
 	public synchronized void login(ClientThread client, Account account)
 			throws GameServerFullException, AccountAlreadyLoginException {
+		_log.info("LoginController.login: 開始登入 account=" + account.getName() + " isValid=" + account.isValid());
+
 		if (!account.isValid()) {
 			// 密碼驗證未指定或不驗證帳戶。
 			// 此代碼只存在的錯誤檢測。
+			_log.warning("LoginController.login: 帳戶未通過認證 account=" + account.getName());
 			throw new IllegalArgumentException("帳戶沒有通過認證");
 		}
+
+		_log.info("LoginController.login: 檢查人數上限 maxPlayers=" + getMaxAllowedOnlinePlayers()
+				+ " currentPlayers=" + getOnlinePlayerCount() + " isGM=" + account.isGameMaster());
 		if ((getMaxAllowedOnlinePlayers() <= getOnlinePlayerCount())
 				&& !account.isGameMaster()) {
+			_log.info("LoginController.login: 伺服器已滿 account=" + account.getName());
 			throw new GameServerFullException();
 		}
+
 		if (_accounts.containsKey(account.getName())) {
+			_log.info("LoginController.login: 帳號已在線，踢除舊連線 account=" + account.getName());
 			kickClient(_accounts.remove(account.getName()));
 			throw new AccountAlreadyLoginException();
 		}
 
 		_accounts.put(account.getName(), client);
+		_log.info("LoginController.login: 登入成功，已加入線上列表 account=" + account.getName()
+				+ " onlineCount=" + getOnlinePlayerCount());
 	}
 
 	/**

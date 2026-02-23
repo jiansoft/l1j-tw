@@ -238,4 +238,15 @@ public abstract class ServerBasePacket {
 	public String getType() {
 		return "[S] " + this.getClass().getSimpleName();
 	}
+
+	/**
+	 * 取得封包參數描述（供日誌輸出用）
+	 * <p>子類別可覆寫此方法來提供有意義的參數資訊
+	 * <p>預設回傳 null 表示不輸出參數
+	 *
+	 * @return 參數描述字串，例如 "currentMp=100, maxMp=200"
+	 */
+	public String getParams() {
+		return null;
+	}
 }

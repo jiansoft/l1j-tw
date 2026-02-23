@@ -111,7 +111,10 @@ public final class Config {
 	public static boolean SEND_PACKET_BEFORE_TELEPORT;
 
 	public static boolean DETECT_DB_RESOURCE_LEAKS;
-	
+
+	/** 是否記錄封包 opcode（除錯用） */
+	public static boolean LOG_PACKET_OPCODE;
+
 	public static boolean CmdActive;
 	
 	public static int Announcements_Cycle_Time;
@@ -489,6 +492,7 @@ public final class Config {
 			LEVEL_DOWN_RANGE = Integer.parseInt(serverSettings.getProperty("LevelDownRange", "0"));
 			SEND_PACKET_BEFORE_TELEPORT = Boolean.parseBoolean(serverSettings.getProperty("SendPacketBeforeTeleport", "false"));
 			DETECT_DB_RESOURCE_LEAKS = Boolean.parseBoolean(serverSettings.getProperty("EnableDatabaseResourceLeaksDetection", "false"));
+			LOG_PACKET_OPCODE = Boolean.parseBoolean(serverSettings.getProperty("LogPacketOpcode", "false"));
 			CmdActive = Boolean.parseBoolean(serverSettings.getProperty("CmdActive", "false"));
 			Announcements_Cycle_Time = Integer.parseInt(serverSettings.getProperty("AnnouncementsCycleTime", "10"));
 			Announcements_Cycle_Modify_Time = Boolean.parseBoolean(serverSettings.getProperty("AnnounceTimeDisplay", "True"));

@@ -156,7 +156,7 @@ public class L1TreasureBox {
 
 	public static void load() {
 		PerformanceTimer timer = new PerformanceTimer();
-		System.out.print("loading TreasureBox...");
+		_log.info("載入寶箱資料...");
 		try {
 			JAXBContext context = JAXBContext
 					.newInstance(L1TreasureBox.TreasureBoxList.class);
@@ -171,10 +171,10 @@ public class L1TreasureBox {
 				_dataMap.put(each.getBoxId(), each);
 			}
 		} catch (Exception e) {
-			_log.log(Level.SEVERE, PATH + "載入失敗。", e);
+			_log.log(Level.SEVERE, PATH + " 載入失敗", e);
 			System.exit(0);
 		}
-		System.out.println("OK! " + timer.get() + "ms");
+		_log.info("寶箱資料載入完成, 耗時 " + timer.get() + " ms");
 	}
 
 	/**

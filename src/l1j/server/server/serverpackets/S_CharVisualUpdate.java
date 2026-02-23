@@ -21,18 +21,25 @@ import l1j.server.server.model.Instance.L1PcInstance;
 public class S_CharVisualUpdate extends ServerBasePacket {
 	private static final String _S__0B_S_CharVisualUpdate = "[C] S_CharVisualUpdate";
 
+	private int _charId;
+	private int _weapon;
+
 	public S_CharVisualUpdate(L1PcInstance pc) {
+		_charId = pc.getId();
+		_weapon = pc.getCurrentWeapon();
 		writeC(Opcodes.S_OPCODE_CHARVISUALUPDATE);
-		writeD(pc.getId());
-		writeC(pc.getCurrentWeapon());
+		writeD(_charId);
+		writeC(_weapon);
 		writeC(0xff);
 		writeC(0xff);
 	}
 
 	public S_CharVisualUpdate(L1Character cha, int status) {
+		_charId = cha.getId();
+		_weapon = status;
 		writeC(Opcodes.S_OPCODE_CHARVISUALUPDATE);
-		writeD(cha.getId());
-		writeC(status);
+		writeD(_charId);
+		writeC(_weapon);
 		writeC(0xff);
 		writeC(0xff);
 	}
@@ -45,5 +52,10 @@ public class S_CharVisualUpdate extends ServerBasePacket {
 	@Override
 	public String getType() {
 		return _S__0B_S_CharVisualUpdate;
+	}
+
+	@Override
+	public String getParams() {
+		return "charId=" + _charId + ", weapon=" + _weapon;
 	}
 }

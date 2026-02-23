@@ -25,8 +25,16 @@ public class S_OwnCharStatus extends ServerBasePacket {
 	private static final String S_OWB_CHAR_STATUS = "[S] S_OwnCharStatus";
 
 	private byte[] _byte = null;
+	private final String _charName;
+	private final int _level;
+	private final int _hp;
+	private final int _mp;
 
 	public S_OwnCharStatus(L1PcInstance pc) {
+		_charName = pc.getName();
+		_level = pc.getLevel();
+		_hp = pc.getCurrentHp();
+		_mp = pc.getCurrentMp();
 		int time = L1GameTimeClock.getInstance().currentTime().getSeconds();
 		time = time - (time % 300);
 		writeC(Opcodes.S_OPCODE_OWNCHARSTATUS);
@@ -74,5 +82,10 @@ public class S_OwnCharStatus extends ServerBasePacket {
 	@Override
 	public String getType() {
 		return S_OWB_CHAR_STATUS;
+	}
+
+	@Override
+	public String getParams() {
+		return "name=\"" + _charName + "\", lv=" + _level + ", hp=" + _hp + ", mp=" + _mp;
 	}
 }

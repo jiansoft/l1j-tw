@@ -607,7 +607,7 @@ public class L1BossCycle {
 	 */
 	public static void load() {
 		PerformanceTimer timer = new PerformanceTimer();
-		System.out.print("loading boss cycle...");
+		_log.info("載入 Boss 週期資料...");
 		try {
 			// 建立 JAXB 上下文以綁定 L1BossCycleList 類別
 			JAXBContext context = JAXBContext.newInstance(L1BossCycle.L1BossCycleList.class);
@@ -638,10 +638,10 @@ public class L1BossCycle {
 			BossSpawnTable.fillSpawnTable();
 		}
 		catch (Exception e) {
-			_log.log(Level.SEVERE, "BossCycleを読み込めませんでした", e);
+			_log.log(Level.SEVERE, "Boss 週期資料載入失敗", e);
 			System.exit(0);
 		}
-		System.out.println("OK! " + timer.get() + "ms");
+		_log.info("Boss 週期資料載入完成, 耗時 " + timer.get() + " ms");
 	}
 
 	/**
@@ -651,10 +651,9 @@ public class L1BossCycle {
 	 * @param now 用於計算週期資訊的時間
 	 */
 	public void showData(Calendar now) {
-		System.out.println("[Type]" + getName());
-		System.out.print("  [出現期間]");
-		System.out.print(_sdf.format(getSpawnStartTime(now).getTime()) + " - ");
-		System.out.println(_sdf.format(getSpawnEndTime(now).getTime()));
+		_log.info("[Boss週期] " + getName() + " 出現期間: "
+				+ _sdf.format(getSpawnStartTime(now).getTime()) + " - "
+				+ _sdf.format(getSpawnEndTime(now).getTime()));
 	}
 
 	/** Boss 週期名稱對應表 (週期名稱 -> L1BossCycle 物件) */

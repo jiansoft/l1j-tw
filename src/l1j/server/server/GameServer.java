@@ -262,12 +262,12 @@ public class GameServer extends Thread {
 	 */
 	@Override
 	public void run() {
-		System.out.println(L1Message.memoryUse + SystemUtil.getUsedMemoryMB() + L1Message.memory);
-		System.out.println(L1Message.waitingforuser);
+		_log.info(L1Message.memoryUse + SystemUtil.getUsedMemoryMB() + L1Message.memory);
+		_log.info(L1Message.waitingforuser);
 		while (true) {
 			try {
 				Socket socket = _serverSocket.accept();
-				System.out.println(L1Message.from + socket.getInetAddress()+ L1Message.attempt);
+				_log.info(L1Message.from + socket.getInetAddress()+ L1Message.attempt);
 				String host = socket.getInetAddress().getHostAddress();
 				if (IpTable.getInstance().isBannedIp(host)) {
 					_log.info("banned IP(" + host + ")");
@@ -677,39 +677,38 @@ public class GameServer extends Thread {
 			InetAddress inetaddress = InetAddress.getByName(s);
 			inetaddress.getHostAddress();
 			_serverSocket = new ServerSocket(_port, 50, inetaddress);
-			System.out.println(L1Message.setporton + _port);
+			_log.info(L1Message.setporton + _port);
 		} else {
 			_serverSocket = new ServerSocket(_port);
-			System.out.println(L1Message.setporton + _port);
+			_log.info(L1Message.setporton + _port);
 		}
 
-		System.out.println("┌───────────────────────────────┐");
-		System.out.println("│     " + L1Message.ver + "\t" + "\t" + "│");
-		System.out.println("└───────────────────────────────┘" + "\n");
+		_log.info("┌───────────────────────────────┐");
+		_log.info("│     " + L1Message.ver + "\t" + "\t" + "│");
+		_log.info("└───────────────────────────────┘");
 
-		System.out.println(L1Message.settingslist + "\n");
-		System.out.println("┌" + L1Message.exp + ": " + (rateXp) + L1Message.x
-				+ "\n\r├" + L1Message.justice + ": " + (LA) + L1Message.x
-				+ "\n\r├" + L1Message.karma + ": " + (rateKarma) + L1Message.x
-				+ "\n\r├" + L1Message.dropitems + ": " + (rateDropItems)+ L1Message.x 
-				+ "\n\r├" + L1Message.dropadena + ": "+ (rateDropAdena) + L1Message.x 
-				+ "\n\r├"+ L1Message.enchantweapon + ": "+ (Config.ENCHANT_CHANCE_WEAPON) + "%" 
-				+ "\n\r├"+ L1Message.enchantarmor + ": " + (Config.ENCHANT_CHANCE_ARMOR)+ "%");
-		System.out.println("├" + L1Message.chatlevel + ": " + (chatlvl)+ L1Message.level);
+		_log.info(L1Message.settingslist);
+		_log.info("┌" + L1Message.exp + ": " + (rateXp) + L1Message.x);
+		_log.info("├" + L1Message.justice + ": " + (LA) + L1Message.x);
+		_log.info("├" + L1Message.karma + ": " + (rateKarma) + L1Message.x);
+		_log.info("├" + L1Message.dropitems + ": " + (rateDropItems)+ L1Message.x);
+		_log.info("├" + L1Message.dropadena + ": "+ (rateDropAdena) + L1Message.x);
+		_log.info("├"+ L1Message.enchantweapon + ": "+ (Config.ENCHANT_CHANCE_WEAPON) + "%");
+		_log.info("├"+ L1Message.enchantarmor + ": " + (Config.ENCHANT_CHANCE_ARMOR)+ "%");
+		_log.info("├" + L1Message.chatlevel + ": " + (chatlvl)+ L1Message.level);
 
 		if (Config.ALT_NONPVP) { // Non-PvP設定
-			System.out.println("└" + L1Message.nonpvpNo + "\n");
+			_log.info("└" + L1Message.nonpvpNo);
 		} else {
-			System.out.println("└" + L1Message.nonpvpYes + "\n");
+			_log.info("└" + L1Message.nonpvpYes);
 		}
 
 		int maxOnlineUsers = Config.MAX_ONLINE_USERS;
-		System.out.println(L1Message.maxplayer + (maxOnlineUsers)
-				+ L1Message.player);
+		_log.info(L1Message.maxplayer + (maxOnlineUsers) + L1Message.player);
 
-		System.out.println("┌───────────────────────────────┐");
-		System.out.println("│     " + L1Message.ver + "\t" + "\t" + "│");
-		System.out.println("└───────────────────────────────┘" + "\n");
+		_log.info("┌───────────────────────────────┐");
+		_log.info("│     " + L1Message.ver + "\t" + "\t" + "│");
+		_log.info("└───────────────────────────────┘");
 
 		IdFactory.getInstance();
 		L1WorldMap.getInstance();
@@ -828,7 +827,7 @@ public class GameServer extends Thread {
 		MagicDollTable.getInstance();
 		FurnitureItemTable.getInstance();
 
-		System.out.println(L1Message.initialfinished);
+		_log.info(L1Message.initialfinished);
 		Runtime.getRuntime().addShutdownHook(Shutdown.getInstance());
 		
 		// cmd互動指令

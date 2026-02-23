@@ -24,6 +24,9 @@ public class S_ItemName extends ServerBasePacket {
 
 	private static final String S_ITEM_NAME = "[S] S_ItemName";
 
+	private int _itemObjId;
+	private String _itemName;
+
 	/**
 	 * アイテムの名前を変更する。装備や強化状態が変わったときに送る。
 	 */
@@ -31,11 +34,13 @@ public class S_ItemName extends ServerBasePacket {
 		if (item == null) {
 			return;
 		}
+		_itemObjId = item.getId();
+		_itemName = item.getViewName();
 		// jumpを見る限り、このOpcodeはアイテム名を更新させる目的だけに使用される模様（装備後やOE後専用？）
 		// 後に何かデータを続けて送っても全て無視されてしまう
 		writeC(Opcodes.S_OPCODE_ITEMNAME);
-		writeD(item.getId());
-		writeS(item.getViewName());
+		writeD(_itemObjId);
+		writeS(_itemName);
 	}
 
 	@Override
@@ -46,5 +51,10 @@ public class S_ItemName extends ServerBasePacket {
 	@Override
 	public String getType() {
 		return S_ITEM_NAME;
+	}
+
+	@Override
+	public String getParams() {
+		return "itemObjId=" + _itemObjId + ", name=\"" + _itemName + "\"";
 	}
 }

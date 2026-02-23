@@ -19,6 +19,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Date;
@@ -73,7 +74,7 @@ public class AnnouncementsCycle {
 			fileEnsure(); // 先確保檔案存在
 			if (dir.lastModified() > lastmodify || firstboot) { // 如果有修改過
 				list.clear(); // 清空容器
-				buf = new BufferedReader(new InputStreamReader(new FileInputStream(dir), "utf8"));
+				buf = new BufferedReader(new InputStreamReader(Files.newInputStream(dir.toPath()), "utf8"));
 				while ((line = buf.readLine()) != null) {
 					// 消除 UTF-8 BOM
 					if(firstLine && line.startsWith("\uFEFF")){
@@ -114,7 +115,7 @@ public class AnnouncementsCycle {
 
 	private void cycle() {
 		AnnouncementsCycleTask task = new AnnouncementsCycleTask();
-		GeneralThreadPool.getInstance().scheduleAtFixedRate(task, 100000, 60000 * Config.Announcements_Cycle_Time); // 10分鐘公告一次
+		GeneralThreadPool.getInstance().scheduleAtFixedRate(task, 100000, 60000L * Config.Announcements_Cycle_Time); // 10分鐘公告一次
 	}
 
 	/**

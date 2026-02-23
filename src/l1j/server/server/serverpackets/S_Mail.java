@@ -30,6 +30,8 @@ public class S_Mail extends ServerBasePacket {
 	private static final String S_MAIL = "[S] S_Mail";
 
 	private byte[] _byte = null;
+	private final int _type;
+	private String _extraInfo = "";
 
 	/**
 	 * 『來源:伺服器』<位址:186>{長度:216}(時間:1061159132)
@@ -50,6 +52,7 @@ public class S_Mail extends ServerBasePacket {
 	 */
 	// 打開收信夾 ?封信件顯示標題
 	public S_Mail(L1PcInstance pc, int type) {
+		_type = type;
 		List<L1Mail> mails = Lists.newList();
 		MailTable.getInstance();
 		for (L1Mail mail : MailTable.getAllMail()) {
@@ -60,10 +63,11 @@ public class S_Mail extends ServerBasePacket {
 			}
 		}
 
+		_extraInfo = "mailCount=" + mails.size();
 		writeC(Opcodes.S_OPCODE_MAIL);
 		writeC(type);
 		writeH(mails.size());
-		
+
 		if (mails.isEmpty()) {
 			return;
 		}
@@ -85,6 +89,8 @@ public class S_Mail extends ServerBasePacket {
 	 * @param isDraft 是否是寄件備份 ? true:備份  , false:寄出
 	 */
 	public S_Mail(L1PcInstance pc, int mailId, boolean isDraft){
+		_type = 0x50;
+		_extraInfo = "mailId=" + mailId + ", isDraft=" + isDraft;
 		MailTable.getInstance();
 		L1Mail mail = MailTable.getMail(mailId);
 		writeC(Opcodes.S_OPCODE_MAIL);
@@ -101,6 +107,8 @@ public class S_Mail extends ServerBasePacket {
 	 * @param isDelivered 寄出:1 ,失敗:0
 	 */
 	public S_Mail(int type, boolean isDelivered) {
+		_type = type;
+		_extraInfo = "isDelivered=" + isDelivered;
 		writeC(Opcodes.S_OPCODE_MAIL);
 		writeC(type);
 		writeC(isDelivered ? 1 : 0);
@@ -114,6 +122,8 @@ public class S_Mail extends ServerBasePacket {
 	 * 
 	 */
 	public S_Mail(int mailId, int type) {
+		_type = type;
+		_extraInfo = "mailId=" + mailId;
 		// 刪除信件
 		// 0x30: 刪除一般 0x31:刪除血盟 0x32:一般存到保管箱 0x40:刪除保管箱
 		if ((type == 0x30) || (type == 0x31) || (type == 0x32) || (type == 0x40)) {
@@ -146,5 +156,10 @@ public class S_Mail extends ServerBasePacket {
 	@Override
 	public String getType() {
 		return S_MAIL;
+	}
+
+	@Override
+	public String getParams() {
+		return "type=" + _type + (_extraInfo.isEmpty() ? "" : ", " + _extraInfo);
 	}
 }

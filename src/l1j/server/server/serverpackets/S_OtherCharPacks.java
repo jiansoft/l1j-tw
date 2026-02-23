@@ -33,12 +33,24 @@ public class S_OtherCharPacks extends ServerBasePacket {
 	private static final int STATUS_PC = 4;
 
 	private byte[] _byte = null;
+	private final String _charName;
+	private final int _x;
+	private final int _y;
+	private final int _charId;
 
 	public S_OtherCharPacks(L1PcInstance pc, boolean isFindInvis) {
+		_charName = pc.getName();
+		_x = pc.getX();
+		_y = pc.getY();
+		_charId = pc.getId();
 		buildPacket(pc, isFindInvis);
 	}
 
 	public S_OtherCharPacks(L1PcInstance pc) {
+		_charName = pc.getName();
+		_x = pc.getX();
+		_y = pc.getY();
+		_charId = pc.getId();
 		buildPacket(pc, false);
 	}
 
@@ -124,4 +136,8 @@ public class S_OtherCharPacks extends ServerBasePacket {
 		return S_OTHER_CHAR_PACKS;
 	}
 
+	@Override
+	public String getParams() {
+		return "charId=" + _charId + ", name=\"" + _charName + "\", x=" + _x + ", y=" + _y;
+	}
 }

@@ -21,6 +21,11 @@ public class S_AttackPacket extends ServerBasePacket {
 	private static final String S_ATTACK_PACKET = "[S] S_AttackPacket";
 
 	private byte[] _byte = null;
+	private int _attackerId;
+	private int _targetId;
+	private int _actId;
+	private int _damage;
+	private int _effect;
 
 	public S_AttackPacket(L1Character atk, int objid, int[] data) {
 		buildpacket(atk, objid, data);
@@ -32,6 +37,11 @@ public class S_AttackPacket extends ServerBasePacket {
 	}
 
 	private void buildpacket(L1Character atk, int objid, int[] data) { // data = {actid, dmg, effect}
+		_attackerId = atk.getId();
+		_targetId = objid;
+		_actId = data[0];
+		_damage = data[1];
+		_effect = data[2];
 		writeC(Opcodes.S_OPCODE_ATTACKPACKET);
 		writeC(data[0]); // actid
 		writeD(atk.getId());
@@ -54,5 +64,10 @@ public class S_AttackPacket extends ServerBasePacket {
 	@Override
 	public String getType() {
 		return S_ATTACK_PACKET;
+	}
+
+	@Override
+	public String getParams() {
+		return "attackerId=" + _attackerId + ", targetId=" + _targetId + ", actId=" + _actId + ", dmg=" + _damage + ", effect=" + _effect;
 	}
 }

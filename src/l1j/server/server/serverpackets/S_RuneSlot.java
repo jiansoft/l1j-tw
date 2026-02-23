@@ -22,11 +22,16 @@ import l1j.server.server.Opcodes;
 
 public class S_RuneSlot extends ServerBasePacket{
 	private static final String S_RUNESLOT = "[S] S_RuneSlot";
-	
+
 	public static int RUNE_CLOSE_SLOT = 1;
 	public static int RUNE_OPEN_SLOT = 2;
-	
+
+	private final int _type;
+	private final int _slotNum;
+
 	public S_RuneSlot(int type, int slotNum){
+		_type = type;
+		_slotNum = slotNum;
 		writeC(Opcodes.S_OPCODE_CHARRESET);
 		writeC(0x43);
 		writeD(type);
@@ -46,6 +51,11 @@ public class S_RuneSlot extends ServerBasePacket{
 	@Override
 	public String getType() {
 		return S_RUNESLOT;
+	}
+
+	@Override
+	public String getParams() {
+		return "type=" + _type + ", slotNum=" + _slotNum;
 	}
 }
 
